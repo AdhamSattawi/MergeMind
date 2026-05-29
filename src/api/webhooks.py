@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, Request, status, BackgroundTasks
 
 from src.models.gitlab_payload import GitLabMergeRequestEvent
 from src.agent.arbitration_agent import create_arbitration_agent
+from google.adk.runners import InMemoryRunner
 
 logger = logging.getLogger("mergemind.webhooks")
 
@@ -68,7 +69,7 @@ async def handle_gitlab_webhook(event: GitLabMergeRequestEvent, request: Request
     }
 
 
-def run_agent_task(event: GitLabMergeRequestEvent):
+async def run_agent_task(event: GitLabMergeRequestEvent):
     """
     Background task that actually invokes the ADK Agent.
     """
@@ -76,12 +77,16 @@ def run_agent_task(event: GitLabMergeRequestEvent):
     try:
         logger.info(f"Starting background agent evaluation for MR {mr.iid}...")
         agent = create_arbitration_agent()
+        runner = InMemoryRunner(agent=agent)
         
         task_prompt = f"Please evaluate Merge Request IID {mr.iid} in the {event.project.name} repository. Ensure you do self-introspection first, check heuristics, and finally execute the payment and ledger logic."
         
-        # Invoke the agent
-        response = agent.run(task_prompt)
-        logger.info(f"Agent finished evaluating MR {mr.iid}. Final Response: {response}")
+        # Invoke the agent asynchronously
+        responses = []
+        for e in runner.run(user_id="webhook", session_id=str(mr.iid), new_message=task_prompt):
+            responses.append(e)
+            
+        logger.info(f"Agent finished evaluating MR {mr.iid}. Final Response: {responses[-1] if responses else 'No response'}")
         
     except Exception as e:
         logger.error(f"Agent evaluation failed for MR {mr.iid}: {e}", exc_info=True)
