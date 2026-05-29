@@ -18,7 +18,7 @@ def setup_tracing():
     """
     try:
         from arize.otel import register
-        # from openinference.instrumentation.google_adk import GoogleADKInstrumentor
+        from openinference.instrumentation.google_adk import GoogleADKInstrumentor
         from config.settings import settings
 
         if not settings.arize_space_id or not settings.arize_api_key:
@@ -32,10 +32,10 @@ def setup_tracing():
             project_name="mergemind-arbitration",
         )
 
-        # TODO: Add GoogleADKInstrumentor when available in openinference
-        # GoogleADKInstrumentor().instrument(tracer_provider=tracer_provider)
+        # Instrument the ADK agent
+        GoogleADKInstrumentor().instrument(tracer_provider=tracer_provider)
         
-        logger.info("Arize tracing initialized successfully.")
+        logger.info("Arize tracing initialized successfully with ADK Instrumentor.")
     
     except ImportError as e:
         logger.error("Failed to import tracing libraries: %s. Is Arize installed?", e)

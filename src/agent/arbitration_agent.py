@@ -65,6 +65,22 @@ def create_arbitration_agent() -> Agent:
         )
     )
 
+    # --- MCP Tool: Arize Phoenix ---
+    # Provides the agent with self-introspection capabilities to hit the "Bonus Points" track.
+    # The agent can query its own past traces and evaluations to calibrate its scoring
+    # and improve its decision-making loop over time.
+    arize_mcp = MCPToolset(
+        connection_params=StdioServerParams(
+            command="npx",
+            args=[
+                "-y",
+                "@arizeai/phoenix-mcp@latest",
+                "--baseUrl", "https://app.phoenix.arize.com",
+                "--apiKey", settings.arize_api_key,
+            ],
+        )
+    )
+
     # --- Build the Agent ---
     agent = Agent(
         model="gemini-2.0-flash",
@@ -78,12 +94,13 @@ def create_arbitration_agent() -> Agent:
         tools=[
             gitlab_mcp,         # MCP: GitLab operations
             mongo_mcp,          # MCP: MongoDB ledger operations
+            arize_mcp,          # MCP: Arize self-introspection (Bonus points)
             analyze_diff,       # Custom: Deterministic heuristics analysis
             calculate_payment,  # Custom: Score-to-payment conversion
         ],
     )
 
-    logger.info("Arbitration Agent created successfully with GitLab + MongoDB MCP tools")
+    logger.info("Arbitration Agent created successfully with GitLab, MongoDB, and Arize MCP tools")
 
     # TODO: Initialize Arize tracing for this agent
     # from src.observability.tracer import setup_tracing
