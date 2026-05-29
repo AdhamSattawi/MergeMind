@@ -1,6 +1,12 @@
 # Use the official lightweight Python image
 FROM python:3.11-slim
 
+# Copy Node.js 20 from the official node image (avoids DNS issues with apt-get)
+COPY --from=node:20-slim /usr/local/bin/node /usr/local/bin/
+COPY --from=node:20-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+    && ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
+
 # Set the working directory
 WORKDIR /app
 
@@ -11,12 +17,7 @@ ENV PYTHONUNBUFFERED=1
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
-    curl \
     && rm -rf /var/lib/apt/lists/*
-
-# Install Node.js (Required for npx to run MCP servers)
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y nodejs
 
 # Copy requirements and install
 COPY requirements.txt .

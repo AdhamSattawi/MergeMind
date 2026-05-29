@@ -6,9 +6,10 @@ validates the payload, and triggers the Arbitration Agent for evaluation.
 """
 
 import logging
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Request, status, BackgroundTasks
 
 from src.models.gitlab_payload import GitLabMergeRequestEvent
+from src.agent.arbitration_agent import create_arbitration_agent
 
 logger = logging.getLogger("mergemind.webhooks")
 
@@ -22,7 +23,7 @@ router = APIRouter(prefix="/api/v1/webhooks", tags=["webhooks"])
     description="Accepts a GitLab webhook payload for Merge Request events "
     "and triggers the MergeMind Arbitration Agent.",
 )
-async def handle_gitlab_webhook(event: GitLabMergeRequestEvent, request: Request):
+async def handle_gitlab_webhook(event: GitLabMergeRequestEvent, request: Request, background_tasks: BackgroundTasks):
     """
     Handle incoming GitLab Merge Request webhook events.
 
@@ -50,9 +51,8 @@ async def handle_gitlab_webhook(event: GitLabMergeRequestEvent, request: Request
             "reason": f"Action '{mr.action}' is not actionable",
         }
 
-    # TODO: Trigger the Arbitration Agent here
-    # This will be wired up when the agent is fully integrated.
-    # agent_response = await run_arbitration_agent(event)
+    # Trigger the Arbitration Agent in the background
+    background_tasks.add_task(run_agent_task, event)
 
     logger.info(
         "MR event accepted for processing: mr_iid=%s, project=%s",
@@ -66,3 +66,22 @@ async def handle_gitlab_webhook(event: GitLabMergeRequestEvent, request: Request
         "project": event.project.name,
         "action": mr.action,
     }
+
+
+def run_agent_task(event: GitLabMergeRequestEvent):
+    """
+    Background task that actually invokes the ADK Agent.
+    """
+    mr = event.object_attributes
+    try:
+        logger.info(f"Starting background agent evaluation for MR {mr.iid}...")
+        agent = create_arbitration_agent()
+        
+        task_prompt = f"Please evaluate Merge Request IID {mr.iid} in the {event.project.name} repository. Ensure you do self-introspection first, check heuristics, and finally execute the payment and ledger logic."
+        
+        # Invoke the agent
+        response = agent(task_prompt)
+        logger.info(f"Agent finished evaluating MR {mr.iid}. Final Response: {response}")
+        
+    except Exception as e:
+        logger.error(f"Agent evaluation failed for MR {mr.iid}: {e}", exc_info=True)

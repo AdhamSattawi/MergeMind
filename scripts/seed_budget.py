@@ -19,7 +19,7 @@ def seed_database():
     
     print(f"Connecting to MongoDB at: {uri}")
     client = MongoClient(uri)
-    db = client.get_database()
+    db = client.get_database("mergemind")
     
     # Define a starting budget
     budget_pool = {
