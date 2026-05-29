@@ -7,6 +7,7 @@ pydantic-settings>=2.0
 # Google AI / Agent Development Kit
 google-adk>=0.3.0
 google-genai>=1.0.0
+mcp>=1.0.0
 
 # Database
 motor>=3.5.0
