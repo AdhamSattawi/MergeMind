@@ -21,6 +21,7 @@ from src.tools.scoring import calculate_payment
 logger = logging.getLogger("mergemind.agent")
 
 class VertexGemini(Gemini):
+    @property
     def api_client(self) -> Client:
         return Client(
             vertexai=True, 
