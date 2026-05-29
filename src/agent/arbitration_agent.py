@@ -9,6 +9,8 @@ import logging
 
 from google.adk.agents import Agent
 from google.adk.tools import McpToolset
+from google.adk.models.google_llm import Gemini
+from google.genai import Client
 from mcp.client.stdio import StdioServerParameters
 
 from config.settings import settings
@@ -18,6 +20,13 @@ from src.tools.scoring import calculate_payment
 
 logger = logging.getLogger("mergemind.agent")
 
+class VertexGemini(Gemini):
+    def api_client(self) -> Client:
+        return Client(
+            vertexai=True, 
+            project=settings.google_cloud_project, 
+            location="us-central1"
+        )
 
 def create_arbitration_agent() -> Agent:
     """
@@ -84,7 +93,7 @@ def create_arbitration_agent() -> Agent:
 
     # --- Build the Agent ---
     agent = Agent(
-        model="gemini-2.0-flash",
+        model=VertexGemini(model="gemini-2.0-flash"),
         name="mergemind_arbitration_engine",
         description=(
             "An AI-Assisted Arbitration Engine that evaluates code contributions "
