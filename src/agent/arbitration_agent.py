@@ -65,10 +65,8 @@ def create_arbitration_agent() -> Agent:
     # - aggregate: Run analytical queries on historical evaluations
     mongo_mcp = McpToolset(
         connection_params=StdioServerParameters(
-            command="npx",
+            command="mongodb-mcp-server",
             args=[
-                "-y",
-                "mongodb-mcp-server",
                 "--connectionString",
                 settings.mongodb_uri,
             ],
