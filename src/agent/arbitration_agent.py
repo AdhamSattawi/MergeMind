@@ -23,12 +23,7 @@ logger = logging.getLogger("mergemind.agent")
 class VertexGemini(Gemini):
     @property
     def api_client(self) -> Client:
-        return Client(
-            vertexai=True, 
-            project=settings.google_cloud_project, 
-            location="us-central1",
-            api_key=settings.google_api_key
-        )
+        return Client(api_key=settings.google_api_key)
 
 def create_arbitration_agent() -> Agent:
     """
