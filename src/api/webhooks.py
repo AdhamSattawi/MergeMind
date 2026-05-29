@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException, Request, status, BackgroundTasks
 from src.models.gitlab_payload import GitLabMergeRequestEvent
 from src.agent.arbitration_agent import create_arbitration_agent
 from google.adk.runners import InMemoryRunner
+from google.genai.types import Content, Part
 
 logger = logging.getLogger("mergemind.webhooks")
 
@@ -80,10 +81,11 @@ async def run_agent_task(event: GitLabMergeRequestEvent):
         runner = InMemoryRunner(agent=agent)
         
         task_prompt = f"Please evaluate Merge Request IID {mr.iid} in the {event.project.name} repository. Ensure you do self-introspection first, check heuristics, and finally execute the payment and ledger logic."
+        message = Content(role="user", parts=[Part.from_text(text=task_prompt)])
         
-        # Invoke the agent asynchronously
+        # Invoke the agent
         responses = []
-        for e in runner.run(user_id="webhook", session_id=str(mr.iid), new_message=task_prompt):
+        for e in runner.run(user_id="webhook", session_id=str(mr.iid), new_message=message):
             responses.append(e)
             
         logger.info(f"Agent finished evaluating MR {mr.iid}. Final Response: {responses[-1] if responses else 'No response'}")
