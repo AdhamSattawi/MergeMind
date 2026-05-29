@@ -70,7 +70,7 @@ async def handle_gitlab_webhook(event: GitLabMergeRequestEvent, request: Request
     }
 
 
-async def run_agent_task(event: GitLabMergeRequestEvent):
+def run_agent_task(event: GitLabMergeRequestEvent):
     """
     Background task that actually invokes the ADK Agent.
     """
