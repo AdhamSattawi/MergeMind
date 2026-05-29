@@ -83,14 +83,9 @@ async def run_agent_task(event: GitLabMergeRequestEvent):
         task_prompt = f"Please evaluate Merge Request IID {mr.iid} in the {event.project.name} repository. Ensure you do self-introspection first, check heuristics, and finally execute the payment and ledger logic."
         message = Content(role="user", parts=[Part.from_text(text=task_prompt)])
         
-        try:
-            runner.session_service.create_session_sync(app_name="mergemind", user_id="webhook", session_id=str(mr.iid))
-        except Exception:
-            pass
-            
         # Invoke the agent
         responses = []
-        for e in runner.run(user_id="webhook", session_id=str(mr.iid), new_message=message):
+        for e in runner.run(user_id="webhook", new_message=message):
             responses.append(e)
             
         logger.info(f"Agent finished evaluating MR {mr.iid}. Final Response: {responses[-1] if responses else 'No response'}")
