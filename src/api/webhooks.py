@@ -80,7 +80,7 @@ def run_agent_task(event: GitLabMergeRequestEvent):
         agent = create_arbitration_agent()
         runner = InMemoryRunner(agent=agent, app_name="mergemind")
         
-        task_prompt = f"Please evaluate Merge Request IID {mr.iid} in the {event.project.name} repository. Ensure you do self-introspection first, check heuristics, and finally execute the payment and ledger logic."
+        task_prompt = f"Please evaluate Merge Request IID {mr.iid} in the project '{event.project.name}' (Project ID: {event.project.id}). Ensure you do self-introspection first, check heuristics, and finally execute the payment and ledger logic."
         message = Content(role="user", parts=[Part.from_text(text=task_prompt)])
         
         try:

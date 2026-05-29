@@ -6,6 +6,7 @@ GitLab MCP, MongoDB MCP, and custom heuristics/scoring tools.
 """
 
 import logging
+import functools
 
 from google.adk.agents import Agent
 from google.adk.tools import McpToolset
@@ -21,7 +22,7 @@ from src.tools.scoring import calculate_payment
 logger = logging.getLogger("mergemind.agent")
 
 class VertexGemini(Gemini):
-    @property
+    @functools.cached_property
     def api_client(self) -> Client:
         return Client(
             vertexai=True, 
@@ -92,7 +93,7 @@ def create_arbitration_agent() -> Agent:
 
     # --- Build the Agent ---
     agent = Agent(
-        model=VertexGemini(model="gemini-2.0-flash"),
+        model=VertexGemini(model="gemini-2.5-flash"),
         name="mergemind_arbitration_engine",
         description=(
             "An AI-Assisted Arbitration Engine that evaluates code contributions "
