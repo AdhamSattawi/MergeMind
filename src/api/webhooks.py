@@ -78,7 +78,7 @@ async def run_agent_task(event: GitLabMergeRequestEvent):
     try:
         logger.info(f"Starting background agent evaluation for MR {mr.iid}...")
         agent = create_arbitration_agent()
-        runner = InMemoryRunner(agent=agent, auto_create_session=True)
+        runner = InMemoryRunner(agent=agent)
         
         task_prompt = f"Please evaluate Merge Request IID {mr.iid} in the {event.project.name} repository. Ensure you do self-introspection first, check heuristics, and finally execute the payment and ledger logic."
         message = Content(role="user", parts=[Part.from_text(text=task_prompt)])
