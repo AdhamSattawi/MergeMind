@@ -80,7 +80,7 @@ def run_agent_task(event: GitLabMergeRequestEvent):
         task_prompt = f"Please evaluate Merge Request IID {mr.iid} in the {event.project.name} repository. Ensure you do self-introspection first, check heuristics, and finally execute the payment and ledger logic."
         
         # Invoke the agent
-        response = agent(task_prompt)
+        response = agent.run(task_prompt)
         logger.info(f"Agent finished evaluating MR {mr.iid}. Final Response: {response}")
         
     except Exception as e:

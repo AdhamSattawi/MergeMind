@@ -8,7 +8,8 @@ GitLab MCP, MongoDB MCP, and custom heuristics/scoring tools.
 import logging
 
 from google.adk.agents import Agent
-from google.adk.tools.mcp_tool import MCPToolset, StdioServerParams
+from google.adk.tools import McpToolset
+from mcp.client.stdio import StdioServerParameters
 
 from config.settings import settings
 from src.agent.prompts import ARBITRATION_SYSTEM_PROMPT
@@ -36,8 +37,8 @@ def create_arbitration_agent() -> Agent:
     # - get_merge_request / get_merge_request_diffs: Fetch MR details and code changes
     # - get_file_contents: Fetch full file context for deeper analysis
     # - create_note: Post evaluation results as comments on the MR
-    gitlab_mcp = MCPToolset(
-        connection_params=StdioServerParams(
+    gitlab_mcp = McpToolset(
+        connection_params=StdioServerParameters(
             command="npx",
             args=["-y", "@zereight/mcp-gitlab"],
             env={
@@ -53,8 +54,8 @@ def create_arbitration_agent() -> Agent:
     # - insertOne: Write evaluation records to streaming_ledger
     # - updateOne: Deduct payment amounts from budget_pools
     # - aggregate: Run analytical queries on historical evaluations
-    mongo_mcp = MCPToolset(
-        connection_params=StdioServerParams(
+    mongo_mcp = McpToolset(
+        connection_params=StdioServerParameters(
             command="npx",
             args=[
                 "-y",
@@ -69,8 +70,8 @@ def create_arbitration_agent() -> Agent:
     # Provides the agent with self-introspection capabilities to hit the "Bonus Points" track.
     # The agent can query its own past traces and evaluations to calibrate its scoring
     # and improve its decision-making loop over time.
-    arize_mcp = MCPToolset(
-        connection_params=StdioServerParams(
+    arize_mcp = McpToolset(
+        connection_params=StdioServerParameters(
             command="npx",
             args=[
                 "-y",
