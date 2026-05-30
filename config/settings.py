@@ -45,8 +45,10 @@ class Settings(BaseSettings):
     fivetran_allow_writes: str = "true"
     
     # --- Dynatrace ---
-    dynatrace_api_key: str = ""
     dynatrace_environment: str = ""
+    dynatrace_api_key: str = ""
+    dynatrace_oauth_client_id: str | None = None
+    dynatrace_oauth_client_secret: str | None = None
 
     # --- Business Logic ---
     default_budget_pool: int = 10000

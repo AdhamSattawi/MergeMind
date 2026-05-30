@@ -131,19 +131,35 @@ def create_arbitration_agent() -> Agent:
     # Provides the agent with capabilities to interact with Dynatrace:
     # - It will check for active vulnerabilities or system health degradations in production
     #   before finalizing any payments, ensuring developers aren't breaking the system.
-    # dynatrace_mcp = McpToolset(
-    #     connection_params=StdioServerParameters(
-    #         command="npx",
-    #         args=["-y", "@dynatrace-oss/dynatrace-mcp-server"],
-    #         env={
-    #             "DT_ENVIRONMENT": settings.dynatrace_environment,
-    #             "DT_PLATFORM_TOKEN": settings.dynatrace_api_key,
-    #             "DT_MCP_DISABLE_TELEMETRY": "true",
-    #         },
-    #     )
-    # )
+    dynatrace_mcp = None
+    if settings.dynatrace_oauth_client_id and settings.dynatrace_oauth_client_secret:
+        dynatrace_mcp = McpToolset(
+            connection_params=StdioServerParameters(
+                command="npx",
+                args=["-y", "@dynatrace-oss/dynatrace-mcp-server"],
+                env={
+                    "DT_ENVIRONMENT": settings.dynatrace_environment,
+                    "DT_MCP_DISABLE_TELEMETRY": "true",
+                    "OAUTH_CLIENT_ID": settings.dynatrace_oauth_client_id,
+                    "OAUTH_CLIENT_SECRET": settings.dynatrace_oauth_client_secret,
+                },
+            )
+        )
 
     # --- Build the Agent ---
+    tools = [
+        gitlab_mcp,         # MCP: GitLab operations
+        mongo_mcp,          # MCP: MongoDB ledger operations
+        # arize_mcp,        # DISABLED
+        elastic_mcp,        # MCP: Elastic log search and query
+        fivetran_mcp,       # MCP: Fivetran sync orchestration
+        analyze_diff,       # Custom: Deterministic heuristics analysis
+        calculate_payment,  # Custom: Score-to-payment conversion
+        index_evaluation_to_elastic, # Custom: Write evaluation to Elastic
+    ]
+    if dynatrace_mcp:
+        tools.append(dynatrace_mcp)
+
     agent = Agent(
         model=VertexGemini(model="gemini-2.5-flash"),
         name="mergemind_arbitration_engine",
@@ -153,17 +169,7 @@ def create_arbitration_agent() -> Agent:
             "and manages automated compensation through a streaming ledger."
         ),
         instruction=ARBITRATION_SYSTEM_PROMPT,
-        tools=[
-            gitlab_mcp,         # MCP: GitLab operations
-            mongo_mcp,          # MCP: MongoDB ledger operations
-            # arize_mcp,        # DISABLED
-            elastic_mcp,        # MCP: Elastic log search and query
-            fivetran_mcp,       # MCP: Fivetran sync orchestration
-            # dynatrace_mcp,    # DISABLED TEMPORARILY: Dynatrace API token is invalid (expects OAuth JWT)
-            analyze_diff,       # Custom: Deterministic heuristics analysis
-            calculate_payment,  # Custom: Score-to-payment conversion
-            index_evaluation_to_elastic, # Custom: Write evaluation to Elastic
-        ],
+        tools=tools,
     )
 
     logger.info("Arbitration Agent created successfully with GitLab, MongoDB, Arize, Elastic, Fivetran, and Dynatrace MCP tools")
