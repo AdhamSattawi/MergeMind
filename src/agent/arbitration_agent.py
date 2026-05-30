@@ -18,6 +18,7 @@ from config.settings import settings
 from src.agent.prompts import ARBITRATION_SYSTEM_PROMPT
 from src.tools.heuristics import analyze_diff
 from src.tools.scoring import calculate_payment
+from src.tools.elastic_writer import index_evaluation_to_elastic
 
 logger = logging.getLogger("mergemind.agent")
 
@@ -94,15 +95,19 @@ def create_arbitration_agent() -> Agent:
     # Provides the agent with capabilities to interact with Elasticsearch:
     # - It will index a summary of every evaluated Merge Request, creating a searchable knowledge base
     #   of past decisions, ensuring consistency across reviews over time.
+    elastic_env = {"OTEL_SDK_DISABLED": "true"}
+    if settings.elastic_id:
+        elastic_env["ES_URL"] = settings.elastic_id
+    if settings.elastic_cloud_id:
+        elastic_env["ES_CLOUD_ID"] = settings.elastic_cloud_id
+    if settings.elastic_api_key:
+        elastic_env["ES_API_KEY"] = settings.elastic_api_key
+
     elastic_mcp = McpToolset(
         connection_params=StdioServerParameters(
             command="npx",
             args=["-y", "@elastic/mcp-server-elasticsearch"],
-            env={
-                "ES_URL": settings.elastic_id,
-                "ES_API_KEY": settings.elastic_api_key,
-                "OTEL_SDK_DISABLED": "true",
-            },
+            env=elastic_env,
         )
     )
 
@@ -152,11 +157,12 @@ def create_arbitration_agent() -> Agent:
             gitlab_mcp,         # MCP: GitLab operations
             mongo_mcp,          # MCP: MongoDB ledger operations
             # arize_mcp,        # DISABLED
-            elastic_mcp,        # MCP: Elastic log indexing and search
+            elastic_mcp,        # MCP: Elastic log search and query
             fivetran_mcp,       # MCP: Fivetran sync orchestration
             # dynatrace_mcp,    # DISABLED TEMPORARILY: Dynatrace API token is invalid (expects OAuth JWT)
             analyze_diff,       # Custom: Deterministic heuristics analysis
             calculate_payment,  # Custom: Score-to-payment conversion
+            index_evaluation_to_elastic, # Custom: Write evaluation to Elastic
         ],
     )
 

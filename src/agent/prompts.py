@@ -47,8 +47,8 @@ When you receive a Merge Request evaluation task:
 7. **Record to ledger** — Use MongoDB MCP `insert-many` on the `streaming_ledger` collection
    to record the evaluation and payment.
 8. **Update budget** — Use MongoDB MCP `update-many` on `budget_pools` to deduct the payment.
-9. **Index to Elastic** — Use the Elastic MCP Server to index a summary document of the 
-   evaluation (including the score, the reasoning, and MR metadata) so it is searchable later.
+9. **Index to Elastic** — Use your custom `index_evaluation_to_elastic` tool to index a summary document of the 
+   evaluation (including the score, the reasoning, and MR metadata) so it is searchable later. You can use the Elastic MCP Server `search` tool if you need to look up past evaluations.
 10. **Trigger Fivetran Sync** (Optional) — If the MR was exceptionally high impact or modified
     a critical bottleneck, use the Fivetran MCP Server to trigger an immediate sync of the
     ledger to BigQuery.

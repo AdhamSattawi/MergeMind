@@ -34,9 +34,10 @@ class Settings(BaseSettings):
     arize_space_id: str = ""
     arize_api_key: str = ""
 
-    # --- Elastic ---
-    elastic_id: str = ""
-    elastic_api_key: str = ""
+    # Elastic Search
+    elastic_id: str | None = None
+    elastic_cloud_id: str | None = None
+    elastic_api_key: str | None = None
 
     # --- Fivetran ---
     fivetran_api_key: str = ""
