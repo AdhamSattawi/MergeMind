@@ -21,7 +21,7 @@ def setup_tracing():
         from openinference.instrumentation.google_adk import GoogleADKInstrumentor
         import os
 
-        if not os.getenv("PHOENIX_API_KEY") or not os.getenv("PHOENIX_COLLECTOR_ENDPOINT"):
+        if not os.getenv("PHOENIX_API_KEY"):
             logger.warning("Phoenix credentials missing. Tracing will not be enabled.")
             return
 

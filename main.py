@@ -12,13 +12,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from config.settings import settings
 from src.api.webhooks import router as webhooks_router
 
+from src.observability.tracer import setup_tracing
+setup_tracing()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifecycle events for the FastAPI application."""
     # Startup: Initialize tracing, establish connections
-    from src.observability.tracer import setup_tracing
-    setup_tracing()
     
     yield
     

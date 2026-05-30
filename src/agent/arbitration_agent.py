@@ -76,37 +76,33 @@ def create_arbitration_agent() -> Agent:
     )
 
     # --- MCP Tool: Arize Phoenix ---
-    # Provides the agent with self-introspection capabilities to hit the "Bonus Points" track.
-    # The agent can query its own past traces and evaluations to calibrate its scoring
-    # and improve its decision-making loop over time.
-    arize_mcp = McpToolset(
-        connection_params=StdioServerParameters(
-            command="phoenix-mcp",
-            args=[
-                "--baseUrl", "https://app.phoenix.arize.com",
-                "--apiKey", settings.arize_api_key,
-            ],
-            env={
-                "OTEL_SDK_DISABLED": "true"
-            }
-        )
-    )
+    # Disabled because phoenix-mcp is not installed in the Docker container.
+    # arize_mcp = McpToolset(
+    #     connection_params=StdioServerParameters(
+    #         command="phoenix-mcp",
+    #         args=[
+    #             "--baseUrl", "https://app.phoenix.arize.com",
+    #             "--apiKey", settings.arize_api_key,
+    #         ],
+    #         env={
+    #             "OTEL_SDK_DISABLED": "true"
+    #         }
+    #     )
+    # )
 
     # --- MCP Tool: Elastic ---
-    # Provides the agent with capabilities to interact with Elasticsearch:
-    # - It will index a summary of every evaluated Merge Request, creating a searchable knowledge base
-    #   of past decisions, ensuring consistency across reviews over time.
-    elastic_mcp = McpToolset(
-        connection_params=StdioServerParameters(
-            command="mcp-server-elasticsearch",
-            args=[],
-            env={
-                "ES_URL": settings.elastic_id,
-                "ES_API_KEY": settings.elastic_api_key,
-                "OTEL_SDK_DISABLED": "true",
-            },
-        )
-    )
+    # Disabled because mcp-server-elasticsearch does not exist
+    # elastic_mcp = McpToolset(
+    #     connection_params=StdioServerParameters(
+    #         command="npx",
+    #         args=["-y", "@modelcontextprotocol/server-elasticsearch"],
+    #         env={
+    #             "ES_URL": settings.elastic_id,
+    #             "ES_API_KEY": settings.elastic_api_key,
+    #             "OTEL_SDK_DISABLED": "true",
+    #         },
+    #     )
+    # )
 
     # --- MCP Tool: Fivetran ---
     # Provides the agent with capabilities to interact with Fivetran:
@@ -153,8 +149,8 @@ def create_arbitration_agent() -> Agent:
         tools=[
             gitlab_mcp,         # MCP: GitLab operations
             mongo_mcp,          # MCP: MongoDB ledger operations
-            arize_mcp,          # MCP: Arize self-introspection (Bonus points)
-            elastic_mcp,        # MCP: Elastic log indexing and search
+            # arize_mcp,        # DISABLED
+            # elastic_mcp,      # DISABLED
             fivetran_mcp,       # MCP: Fivetran sync orchestration
             # dynatrace_mcp,    # DISABLED TEMPORARILY: Dynatrace API token is invalid (expects OAuth JWT)
             analyze_diff,       # Custom: Deterministic heuristics analysis
@@ -163,9 +159,5 @@ def create_arbitration_agent() -> Agent:
     )
 
     logger.info("Arbitration Agent created successfully with GitLab, MongoDB, Arize, Elastic, Fivetran, and Dynatrace MCP tools")
-
-    # Initialize Arize tracing for this agent
-    from src.observability.tracer import setup_tracing
-    setup_tracing()
 
     return agent
