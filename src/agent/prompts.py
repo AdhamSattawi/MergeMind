@@ -52,7 +52,7 @@ When you receive a Merge Request evaluation task:
 10. **Trigger Fivetran Sync** (Optional) — If the MR was exceptionally high impact or modified
     a critical bottleneck, use the Fivetran MCP Server to trigger an immediate sync of the
     ledger to BigQuery.
-11. **Post feedback** — Use GitLab MCP `create_note` to post a summary of your evaluation
+11. **Post feedback** — Use GitLab MCP `create_merge_request_note` to post a summary of your evaluation
     as a comment on the Merge Request.
 
 ## Scoring Criteria (each 0-100)

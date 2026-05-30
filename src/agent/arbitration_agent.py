@@ -13,7 +13,6 @@ from google.adk.tools import McpToolset
 from google.adk.models.google_llm import Gemini
 from google.genai import Client
 from mcp.client.stdio import StdioServerParameters
-from google.adk.tools.mcp_tool.mcp_session_manager import SseConnectionParams
 
 from config.settings import settings
 from src.agent.prompts import ARBITRATION_SYSTEM_PROMPT
@@ -96,8 +95,14 @@ def create_arbitration_agent() -> Agent:
     # - It will index a summary of every evaluated Merge Request, creating a searchable knowledge base
     #   of past decisions, ensuring consistency across reviews over time.
     elastic_mcp = McpToolset(
-        connection_params=SseConnectionParams(
-            url="http://elastic-mcp:8080/mcp",
+        connection_params=StdioServerParameters(
+            command="npx",
+            args=["-y", "@elastic/mcp-server-elasticsearch"],
+            env={
+                "ES_URL": settings.elastic_id,
+                "ES_API_KEY": settings.elastic_api_key,
+                "OTEL_SDK_DISABLED": "true",
+            },
         )
     )
 

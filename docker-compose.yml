@@ -20,16 +20,7 @@ services:
     volumes:
       - mongodb_data:/data/db
 
-  elastic-mcp:
-    image: docker.elastic.co/mcp/elasticsearch
-    ports:
-      - "8080:8080"
-    environment:
-      - ES_URL=${ELASTIC_ID}
-      - ES_API_KEY=${ELASTIC_API_KEY}
-    command: ["http"]
-    depends_on:
-      - mongodb
+
 
 volumes:
   mongodb_data:
