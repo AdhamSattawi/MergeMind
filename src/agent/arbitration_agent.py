@@ -13,6 +13,7 @@ from google.adk.tools import McpToolset
 from google.adk.models.google_llm import Gemini
 from google.genai import Client
 from mcp.client.stdio import StdioServerParameters
+from google.adk.tools.mcp_tool.mcp_session_manager import SseConnectionParams
 
 from config.settings import settings
 from src.agent.prompts import ARBITRATION_SYSTEM_PROMPT
@@ -91,18 +92,14 @@ def create_arbitration_agent() -> Agent:
     # )
 
     # --- MCP Tool: Elastic ---
-    # Disabled because mcp-server-elasticsearch does not exist
-    # elastic_mcp = McpToolset(
-    #     connection_params=StdioServerParameters(
-    #         command="npx",
-    #         args=["-y", "@modelcontextprotocol/server-elasticsearch"],
-    #         env={
-    #             "ES_URL": settings.elastic_id,
-    #             "ES_API_KEY": settings.elastic_api_key,
-    #             "OTEL_SDK_DISABLED": "true",
-    #         },
-    #     )
-    # )
+    # Provides the agent with capabilities to interact with Elasticsearch:
+    # - It will index a summary of every evaluated Merge Request, creating a searchable knowledge base
+    #   of past decisions, ensuring consistency across reviews over time.
+    elastic_mcp = McpToolset(
+        connection_params=SseConnectionParams(
+            url="http://elastic-mcp:8080/mcp",
+        )
+    )
 
     # --- MCP Tool: Fivetran ---
     # Provides the agent with capabilities to interact with Fivetran:
@@ -124,17 +121,17 @@ def create_arbitration_agent() -> Agent:
     # Provides the agent with capabilities to interact with Dynatrace:
     # - It will check for active vulnerabilities or system health degradations in production
     #   before finalizing any payments, ensuring developers aren't breaking the system.
-    dynatrace_mcp = McpToolset(
-        connection_params=StdioServerParameters(
-            command="npx",
-            args=["-y", "@dynatrace-oss/dynatrace-mcp-server"],
-            env={
-                "DT_ENVIRONMENT": settings.dynatrace_environment,
-                "DT_PLATFORM_TOKEN": settings.dynatrace_api_key,
-                "DT_MCP_DISABLE_TELEMETRY": "true",
-            },
-        )
-    )
+    # dynatrace_mcp = McpToolset(
+    #     connection_params=StdioServerParameters(
+    #         command="npx",
+    #         args=["-y", "@dynatrace-oss/dynatrace-mcp-server"],
+    #         env={
+    #             "DT_ENVIRONMENT": settings.dynatrace_environment,
+    #             "DT_PLATFORM_TOKEN": settings.dynatrace_api_key,
+    #             "DT_MCP_DISABLE_TELEMETRY": "true",
+    #         },
+    #     )
+    # )
 
     # --- Build the Agent ---
     agent = Agent(
@@ -150,7 +147,7 @@ def create_arbitration_agent() -> Agent:
             gitlab_mcp,         # MCP: GitLab operations
             mongo_mcp,          # MCP: MongoDB ledger operations
             # arize_mcp,        # DISABLED
-            # elastic_mcp,      # DISABLED
+            elastic_mcp,        # MCP: Elastic log indexing and search
             fivetran_mcp,       # MCP: Fivetran sync orchestration
             # dynatrace_mcp,    # DISABLED TEMPORARILY: Dynatrace API token is invalid (expects OAuth JWT)
             analyze_diff,       # Custom: Deterministic heuristics analysis
