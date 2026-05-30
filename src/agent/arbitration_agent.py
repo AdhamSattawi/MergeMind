@@ -132,16 +132,15 @@ def create_arbitration_agent() -> Agent:
     # - It will check for active vulnerabilities or system health degradations in production
     #   before finalizing any payments, ensuring developers aren't breaking the system.
     dynatrace_mcp = None
-    if settings.dynatrace_oauth_client_id and settings.dynatrace_oauth_client_secret:
+    if settings.dt_platform_token:
         dynatrace_mcp = McpToolset(
             connection_params=StdioServerParameters(
                 command="npx",
                 args=["-y", "@dynatrace-oss/dynatrace-mcp-server"],
                 env={
                     "DT_ENVIRONMENT": settings.dynatrace_environment,
+                    "DT_PLATFORM_TOKEN": settings.dt_platform_token,
                     "DT_MCP_DISABLE_TELEMETRY": "true",
-                    "OAUTH_CLIENT_ID": settings.dynatrace_oauth_client_id,
-                    "OAUTH_CLIENT_SECRET": settings.dynatrace_oauth_client_secret,
                 },
             )
         )
