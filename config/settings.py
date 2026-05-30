@@ -34,6 +34,19 @@ class Settings(BaseSettings):
     arize_space_id: str = ""
     arize_api_key: str = ""
 
+    # --- Elastic ---
+    elastic_id: str = ""
+    elastic_api_key: str = ""
+
+    # --- Fivetran ---
+    fivetran_api_key: str = ""
+    fivetran_api_secret: str = ""
+    fivetran_allow_writes: str = "true"
+    
+    # --- Dynatrace ---
+    dynatrace_api_key: str = ""
+    dynatrace_environment: str = ""
+
     # --- Business Logic ---
     default_budget_pool: int = 10000
     payment_threshold_score: int = 30

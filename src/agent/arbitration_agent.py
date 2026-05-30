@@ -81,13 +81,62 @@ def create_arbitration_agent() -> Agent:
     # and improve its decision-making loop over time.
     arize_mcp = McpToolset(
         connection_params=StdioServerParameters(
-            command="npx",
+            command="phoenix-mcp",
             args=[
-                "-y",
-                "@arizeai/phoenix-mcp@latest",
                 "--baseUrl", "https://app.phoenix.arize.com",
                 "--apiKey", settings.arize_api_key,
             ],
+            env={
+                "OTEL_SDK_DISABLED": "true"
+            }
+        )
+    )
+
+    # --- MCP Tool: Elastic ---
+    # Provides the agent with capabilities to interact with Elasticsearch:
+    # - It will index a summary of every evaluated Merge Request, creating a searchable knowledge base
+    #   of past decisions, ensuring consistency across reviews over time.
+    elastic_mcp = McpToolset(
+        connection_params=StdioServerParameters(
+            command="mcp-server-elasticsearch",
+            args=[],
+            env={
+                "ES_URL": settings.elastic_id,
+                "ES_API_KEY": settings.elastic_api_key,
+                "OTEL_SDK_DISABLED": "true",
+            },
+        )
+    )
+
+    # --- MCP Tool: Fivetran ---
+    # Provides the agent with capabilities to interact with Fivetran:
+    # - It will monitor or trigger the data sync from MongoDB to BigQuery after
+    #   evaluations are completed.
+    fivetran_mcp = McpToolset(
+        connection_params=StdioServerParameters(
+            command="python",
+            args=["src/tools/fivetran_mcp/server.py"],
+            env={
+                "FIVETRAN_API_KEY": settings.fivetran_api_key,
+                "FIVETRAN_API_SECRET": settings.fivetran_api_secret,
+                "FIVETRAN_ALLOW_WRITES": settings.fivetran_allow_writes,
+            },
+        )
+    )
+
+    # --- MCP Tool: Dynatrace ---
+    # Provides the agent with capabilities to interact with Dynatrace:
+    # - It will check for active vulnerabilities or system health degradations in production
+    #   before finalizing any payments, ensuring developers aren't breaking the system.
+    dynatrace_mcp = McpToolset(
+        connection_params=StdioServerParameters(
+            command="npx",
+            args=["-y", "@dynatrace-oss/dynatrace-mcp-server"],
+            env={
+                "DT_ENVIRONMENT": settings.dynatrace_environment,
+                "DT_PLATFORM_TOKEN": settings.dynatrace_api_key,
+                "DT_MCP_DISABLE_TELEMETRY": "true",
+            },
         )
     )
 
@@ -105,15 +154,18 @@ def create_arbitration_agent() -> Agent:
             gitlab_mcp,         # MCP: GitLab operations
             mongo_mcp,          # MCP: MongoDB ledger operations
             arize_mcp,          # MCP: Arize self-introspection (Bonus points)
+            elastic_mcp,        # MCP: Elastic log indexing and search
+            fivetran_mcp,       # MCP: Fivetran sync orchestration
+            # dynatrace_mcp,    # DISABLED TEMPORARILY: Dynatrace API token is invalid (expects OAuth JWT)
             analyze_diff,       # Custom: Deterministic heuristics analysis
             calculate_payment,  # Custom: Score-to-payment conversion
         ],
     )
 
-    logger.info("Arbitration Agent created successfully with GitLab, MongoDB, and Arize MCP tools")
+    logger.info("Arbitration Agent created successfully with GitLab, MongoDB, Arize, Elastic, Fivetran, and Dynatrace MCP tools")
 
-    # TODO: Initialize Arize tracing for this agent
-    # from src.observability.tracer import setup_tracing
-    # setup_tracing()
+    # Initialize Arize tracing for this agent
+    from src.observability.tracer import setup_tracing
+    setup_tracing()
 
     return agent

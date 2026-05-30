@@ -17,8 +17,8 @@ from src.api.webhooks import router as webhooks_router
 async def lifespan(app: FastAPI):
     """Lifecycle events for the FastAPI application."""
     # Startup: Initialize tracing, establish connections
-    # from src.observability.tracer import setup_tracing
-    # setup_tracing()
+    from src.observability.tracer import setup_tracing
+    setup_tracing()
     
     yield
     

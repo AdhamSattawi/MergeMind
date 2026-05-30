@@ -17,25 +17,24 @@ def setup_tracing():
     that the system's decisions are transparent and not a "black box."
     """
     try:
-        from arize.otel import register
+        from phoenix.otel import register
         from openinference.instrumentation.google_adk import GoogleADKInstrumentor
-        from config.settings import settings
+        import os
 
-        if not settings.arize_space_id or not settings.arize_api_key:
-            logger.warning("Arize credentials missing. Tracing will not be enabled.")
+        if not os.getenv("PHOENIX_API_KEY") or not os.getenv("PHOENIX_COLLECTOR_ENDPOINT"):
+            logger.warning("Phoenix credentials missing. Tracing will not be enabled.")
             return
 
-        # Initialize the Arize OTel exporter
+        # Initialize the Phoenix OTel exporter. It automatically reads PHOENIX_API_KEY
+        # and PHOENIX_COLLECTOR_ENDPOINT from the environment.
         tracer_provider = register(
-            space_id=settings.arize_space_id,
-            api_key=settings.arize_api_key,
             project_name="mergemind-arbitration",
         )
 
         # Instrument the ADK agent
         GoogleADKInstrumentor().instrument(tracer_provider=tracer_provider)
         
-        logger.info("Arize tracing initialized successfully with ADK Instrumentor.")
+        logger.info("Phoenix tracing initialized successfully with ADK Instrumentor.")
     
     except ImportError as e:
         logger.error("Failed to import tracing libraries: %s. Is Arize installed?", e)

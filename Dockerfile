@@ -1,9 +1,9 @@
 # Use the official lightweight Python image
 FROM python:3.11-slim
 
-# Copy Node.js 20 from the official node image (avoids DNS issues with apt-get)
-COPY --from=node:20-slim /usr/local/bin/node /usr/local/bin/
-COPY --from=node:20-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
+# Copy Node.js 22 from the official node image (avoids DNS issues with apt-get)
+COPY --from=node:22-slim /usr/local/bin/node /usr/local/bin/
+COPY --from=node:22-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
 RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 

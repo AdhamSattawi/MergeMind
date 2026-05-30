@@ -5,7 +5,13 @@ A real-time Streamlit dashboard that visualizes the AI Arbitration Engine
 in action. It reads directly from MongoDB to show live ledger updates.
 """
 
+import os
+import pandas as pd
 import streamlit as st
+from pymongo import MongoClient
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Configure the page
 st.set_page_config(
@@ -14,6 +20,14 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+@st.cache_resource
+def get_db():
+    uri = os.getenv("MONGODB_URI", "mongodb://localhost:27017/mergemind")
+    client = MongoClient(uri)
+    return client.get_database("mergemind")
+
+db = get_db()
 
 # Custom CSS for dark theme polish
 st.markdown(
@@ -56,33 +70,45 @@ col1, col2 = st.columns([2, 1])
 
 with col1:
     st.markdown("### 💸 Live Streaming Ledger")
-    st.info("Waiting for database connection to load live transactions...")
-    # TODO: Connect to MongoDB and fetch 'streaming_ledger'
-    # db = connect_mongo()
-    # df = pd.DataFrame(list(db.streaming_ledger.find().sort("timestamp", -1)))
-    # st.dataframe(df, use_container_width=True)
+    
+    # Fetch recent ledger entries
+    ledger_docs = list(db.streaming_ledger.find().sort("timestamp", -1).limit(20))
+    if ledger_docs:
+        df = pd.DataFrame(ledger_docs)
+        # Drop _id for cleaner display
+        if "_id" in df.columns:
+            df = df.drop(columns=["_id"])
+        st.dataframe(df, use_container_width=True)
+    else:
+        st.info("No ledger transactions found yet. Waiting for evaluations...")
     
     st.markdown("### 📊 Budget Burndown")
-    # TODO: Fetch and chart 'budget_pools' history
-    st.line_chart({"Remaining Budget ($)": [10000, 9500, 9100, 9100, 8600]})
+    # Fetch budget pool history (simplified for hackathon to show current remaining)
+    pool = db.budget_pools.find_one({"pool_id": "demo_pool_1"})
+    if pool:
+        st.metric(label="Current Remaining Budget", value=f"${pool.get('remaining_budget', 0):,.2f}")
+        # In a real app we'd query history, here we just show the snapshot
+    else:
+        st.warning("Budget pool not seeded. Run `python scripts/seed_budget.py`")
 
 with col2:
     st.markdown("### 🔍 Recent Evaluation")
     
-    with st.container(border=True):
-        st.markdown("**MR #142: Fix async connection leak**")
-        st.write("Author: `@adham`")
-        
-        # Placeholder for recent evaluation
-        st.metric(label="Impact Score", value="85 / 100")
-        st.metric(label="Payment Streamed", value="$425.00")
-        
-        st.divider()
-        st.markdown("**Agent Verdict:**")
-        st.caption(
-            "The code successfully addresses a critical connection leak by "
-            "implementing proper async context managers. Architectural soundness is "
-            "high. Test coverage was updated to verify connection closure."
-        )
-        
-        st.write("Arize Trace ID: `trace-a1b2c3d4`")
+    if ledger_docs:
+        latest = ledger_docs[0]
+        with st.container(border=True):
+            st.markdown(f"**MR #{latest.get('merge_request_id', 'Unknown')}**")
+            st.write(f"Author: `@user`")
+            
+            st.metric(label="Impact Score", value=f"{latest.get('impact_score', 0)} / 100")
+            st.metric(label="Payment Streamed", value=f"${latest.get('payment_amount', 0):.2f}")
+            
+            st.divider()
+            st.markdown("**Agent Verdict:**")
+            st.caption(latest.get('evaluation_summary', 'No summary provided.'))
+            
+            trace_id = latest.get('trace_id')
+            if trace_id:
+                st.write(f"Arize Trace ID: `{trace_id}`")
+    else:
+        st.info("Waiting for first evaluation...")
