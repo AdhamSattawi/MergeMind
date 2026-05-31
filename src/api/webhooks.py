@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, Request, status, BackgroundTasks, 
 
 from src.models.gitlab_payload import GitLabMergeRequestEvent
 from src.models.evaluation import CodeEvaluation
-from src.agent.arbitration_agent import create_arbitration_agent
+from src.agent.arbitration_agent import get_arbitration_agent
 from config.settings import settings
 from google.adk.runners import InMemoryRunner
 from google.genai.types import Content, Part
@@ -88,7 +88,7 @@ def run_agent_task(event: GitLabMergeRequestEvent):
     mr = event.object_attributes
     try:
         logger.info(f"Starting background agent evaluation for MR {mr.iid}...")
-        agent = create_arbitration_agent()
+        agent = get_arbitration_agent()
         runner = InMemoryRunner(agent=agent, app_name="mergemind")
         
         task_prompt = f"Please evaluate Merge Request IID {mr.iid} in the project '{event.project.name}' (Project ID: {event.project.id}). Ensure you do self-introspection first, check heuristics, and finally execute the payment and ledger logic."

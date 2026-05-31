@@ -31,7 +31,7 @@ def test_analyze_diff_test_files():
 +    assert True
 """
     # Simulate a new file by including /dev/null
-    diff_with_dev_null = "--- a/dev/null\n" + diff
+    diff_with_dev_null = "--- /dev/null\n" + diff
     
     result = analyze_diff(diff_with_dev_null)
     assert result["test_files_added"] > 0 or result["test_files_modified"] > 0

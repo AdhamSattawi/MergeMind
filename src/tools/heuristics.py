@@ -49,8 +49,8 @@ def analyze_diff(diff_content: str) -> Dict[str, Any]:
 
     for line in lines:
         # Detect file paths (e.g., "+++ b/src/main.py")
-        if line.startswith("--- a/"):
-            is_new_file = line == "--- a/dev/null"
+        if line.startswith("--- a/") or line.startswith("--- /dev/null"):
+            is_new_file = line == "--- /dev/null"
             filename = line[6:]
             if filename != "/dev/null":
                 files_modified.add(filename)
