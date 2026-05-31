@@ -6,6 +6,9 @@ validates the payload, and triggers the Arbitration Agent for evaluation.
 """
 
 import logging
+import base64
+import hmac
+import hashlib
 from fastapi import APIRouter, HTTPException, Request, status, BackgroundTasks, Header
 
 from src.models.gitlab_payload import GitLabMergeRequestEvent
@@ -19,6 +22,23 @@ logger = logging.getLogger("mergemind.webhooks")
 
 router = APIRouter(prefix="/api/v1/webhooks", tags=["webhooks"])
 
+def verify_signature(secret: str, webhook_id: str, timestamp: str, raw_body: bytes, received_signature: str) -> bool:
+    """Verifies the HMAC-SHA256 signature from GitLab."""
+    try:
+        if secret.startswith("whsec_"):
+            key = base64.b64decode(secret[6:])
+        else:
+            key = secret.encode('utf-8')
+            
+        message = f"{webhook_id}.{timestamp}.".encode('utf-8') + raw_body
+        computed_hmac = hmac.new(key, message, hashlib.sha256).digest()
+        computed_signature = f"v1,{base64.b64encode(computed_hmac).decode('utf-8')}"
+        
+        return hmac.compare_digest(computed_signature, received_signature)
+    except Exception as e:
+        logger.error(f"Error computing signature: {e}")
+        return False
+
 
 @router.post(
     "/gitlab",
@@ -31,20 +51,37 @@ async def handle_gitlab_webhook(
     event: GitLabMergeRequestEvent,
     request: Request,
     background_tasks: BackgroundTasks,
-    x_gitlab_token: str = Header(default="")
+    x_gitlab_token: str = Header(default=""),
+    webhook_id: str = Header(default="", alias="webhook-id"),
+    webhook_timestamp: str = Header(default="", alias="webhook-timestamp"),
+    webhook_signature: str = Header(default="", alias="webhook-signature"),
 ):
     """
     Handle incoming GitLab Merge Request webhook events.
 
     This endpoint:
     1. Validates the incoming payload against the GitLab MR event schema.
-    2. Filters for actionable events (open, update, merge).
-    3. Triggers the Arbitration Agent asynchronously.
-    4. Returns 202 Accepted immediately.
+    2. Performs HMAC-SHA256 verification if signing token is configured.
+    3. Filters for actionable events (open, update, merge).
+    4. Triggers the Arbitration Agent asynchronously.
+    5. Returns 202 Accepted immediately.
     """
-    if settings.gitlab_webhook_secret and x_gitlab_token != settings.gitlab_webhook_secret:
-        logger.warning("Rejected webhook: invalid x-gitlab-token signature")
-        raise HTTPException(status_code=401, detail="Invalid webhook token")
+    if settings.gitlab_webhook_secret:
+        if webhook_signature and webhook_id and webhook_timestamp:
+            raw_body = await request.body()
+            is_valid = verify_signature(
+                settings.gitlab_webhook_secret,
+                webhook_id,
+                webhook_timestamp,
+                raw_body,
+                webhook_signature
+            )
+            if not is_valid:
+                logger.warning("Rejected webhook: invalid HMAC signature")
+                raise HTTPException(status_code=401, detail="Invalid webhook signature")
+        elif x_gitlab_token != settings.gitlab_webhook_secret:
+            logger.warning("Rejected webhook: invalid x-gitlab-token")
+            raise HTTPException(status_code=401, detail="Invalid webhook token")
 
     mr = event.object_attributes
     logger.info(
@@ -111,10 +148,28 @@ def run_agent_task(event: GitLabMergeRequestEvent):
         # Attempt to parse and validate the JSON output to enforce the schema
         raw_response = responses[-1]
         try:
-            # ADK often wraps JSON in markdown blocks, clean it first if needed
-            clean_json = raw_response.text.strip() if hasattr(raw_response, 'text') else str(raw_response)
-            if clean_json.startswith("```json"):
-                clean_json = clean_json[7:-3].strip()
+            import re
+            raw_str = str(raw_response)
+            
+            # Look for markdown JSON block first
+            json_match = re.search(r'```json\s*(.*?)\s*```', raw_str, re.DOTALL)
+            if json_match:
+                clean_json = json_match.group(1).strip()
+            else:
+                # Fallback to finding the first { ... } block
+                json_match = re.search(r'\{.*\}', raw_str, re.DOTALL)
+                if json_match:
+                    clean_json = json_match.group(0).strip()
+                else:
+                    clean_json = raw_str
+
+            # Unescape heavily stringified quotes if ADK repr mangled them
+            clean_json = clean_json.replace('\\"', '"')
+            
+            # Clean up any escaped single quotes that ADK's repr might have added
+            if clean_json.startswith("'{") and clean_json.endswith("}'"):
+                clean_json = clean_json[1:-1]
+                
             evaluation = CodeEvaluation.model_validate_json(clean_json)
             logger.info(f"Agent successfully evaluated MR {mr.iid}. Validated Schema: impact_score={evaluation.impact_score}")
         except Exception as parse_err:

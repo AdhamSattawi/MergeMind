@@ -23,8 +23,8 @@ def seed_database():
     
     # Define a starting budget
     budget_pool = {
-        "pool_id": "demo_pool_1",
-        "project_id": 67890,  # Matches the simulate_webhook project ID
+        "pool_id": "test_mergemind_pool",
+        "project_id": 82692165,  # Matches the real GitLab project ID
         "total_budget": 10000.0,
         "remaining_budget": 10000.0,
         "currency": "USD"

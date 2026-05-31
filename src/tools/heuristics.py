@@ -7,7 +7,73 @@ hallucinations and providing objective measures of code impact.
 """
 
 import re
+import httpx
 from typing import Any, Dict
+from config.settings import settings
+
+
+def fetch_gitlab_mr_diff(project_id: str, merge_request_iid: str) -> str:
+    """
+    Fetches the raw unified diff of a GitLab Merge Request directly from the GitLab API.
+    Use this tool to fetch diffs instead of the GitLab MCP server due to a known bug.
+
+    Args:
+        project_id: The ID of the GitLab project.
+        merge_request_iid: The IID of the merge request.
+
+    Returns:
+        A single string containing the combined unified diff of all changed files.
+    """
+    url = f"{settings.gitlab_api_url}/projects/{project_id}/merge_requests/{merge_request_iid}/diffs"
+    headers = {"PRIVATE-TOKEN": settings.gitlab_personal_access_token}
+    
+    try:
+        response = httpx.get(url, headers=headers)
+        response.raise_for_status()
+        diffs = response.json()
+        
+        combined_diff = ""
+        for d in diffs:
+            # Reconstruct standard unified diff headers
+            old_path = d.get('old_path', '/dev/null')
+            new_path = d.get('new_path', '/dev/null')
+            
+            if d.get('new_file'):
+                old_path = '/dev/null'
+            if d.get('deleted_file'):
+                new_path = '/dev/null'
+                
+            combined_diff += f"--- a/{old_path}\n"
+            combined_diff += f"+++ b/{new_path}\n"
+            combined_diff += d.get('diff', '') + "\n"
+            
+        return combined_diff if combined_diff else "No changes found."
+    except Exception as e:
+        return f"Error fetching diff: {e}"
+
+
+def post_gitlab_mr_comment(project_id: str, merge_request_iid: str, body: str) -> str:
+    """
+    Posts a comment (note) to a GitLab Merge Request directly via the GitLab API.
+    Use this tool instead of the GitLab MCP server's create_note tool due to a known bug.
+
+    Args:
+        project_id: The ID of the GitLab project.
+        merge_request_iid: The IID of the merge request.
+        body: The markdown-formatted text content of the comment.
+
+    Returns:
+        A success message or an error string.
+    """
+    url = f"{settings.gitlab_api_url}/projects/{project_id}/merge_requests/{merge_request_iid}/notes"
+    headers = {"PRIVATE-TOKEN": settings.gitlab_personal_access_token}
+    
+    try:
+        response = httpx.post(url, headers=headers, json={"body": body})
+        response.raise_for_status()
+        return f"Successfully posted comment to MR {merge_request_iid}."
+    except Exception as e:
+        return f"Error posting comment: {e}"
 
 
 def analyze_diff(diff_content: str) -> Dict[str, Any]:

@@ -9,6 +9,11 @@ import datetime
 import httpx
 import asyncio
 import os
+import uuid
+import base64
+import hmac
+import hashlib
+import json
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -52,7 +57,25 @@ async def simulate_webhook():
     headers = {}
     webhook_secret = os.getenv("GITLAB_WEBHOOK_SECRET")
     if webhook_secret:
-        headers["x-gitlab-token"] = webhook_secret
+        if webhook_secret.startswith("whsec_"):
+            # Compute HMAC
+            webhook_id = str(uuid.uuid4())
+            timestamp = str(int(datetime.datetime.now().timestamp()))
+            
+            headers["webhook-id"] = webhook_id
+            headers["webhook-timestamp"] = timestamp
+            
+            key = base64.b64decode(webhook_secret[6:])
+            raw_body = json.dumps(payload).encode('utf-8')
+            # FastAPI's httpx AsyncClient handles json encoding by removing spaces. Let's send exactly what httpx generates.
+            # Wait, httpx json dumping defaults to json.dumps(..., separators=(',', ':')).encode('utf-8')
+            raw_body = json.dumps(payload, separators=(',', ':')).encode('utf-8')
+            
+            message = f"{webhook_id}.{timestamp}.".encode('utf-8') + raw_body
+            computed_hmac = hmac.new(key, message, hashlib.sha256).digest()
+            headers["webhook-signature"] = f"v1,{base64.b64encode(computed_hmac).decode('utf-8')}"
+        else:
+            headers["x-gitlab-token"] = webhook_secret
 
     print(f"Sending mock webhook to {url}...")
     

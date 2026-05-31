@@ -16,7 +16,7 @@ from mcp.client.stdio import StdioServerParameters
 
 from config.settings import settings
 from src.agent.prompts import ARBITRATION_SYSTEM_PROMPT
-from src.tools.heuristics import analyze_diff
+from src.tools.heuristics import analyze_diff, fetch_gitlab_mr_diff, post_gitlab_mr_comment
 from src.tools.scoring import calculate_payment
 from src.tools.elastic_writer import index_evaluation_to_elastic
 
@@ -56,7 +56,7 @@ def create_arbitration_agent() -> Agent:
     gitlab_mcp = McpToolset(
         connection_params=StdioServerParameters(
             command="npx",
-            args=["-y", "@zereight/mcp-gitlab"],
+            args=["-y", "@zereight/mcp-gitlab@1.0.64"],
             env={
                 "GITLAB_PERSONAL_ACCESS_TOKEN": settings.gitlab_personal_access_token,
                 "GITLAB_API_URL": settings.gitlab_api_url,
@@ -73,10 +73,10 @@ def create_arbitration_agent() -> Agent:
     mongo_mcp = McpToolset(
         connection_params=StdioServerParameters(
             command="mongodb-mcp-server",
-            args=[
-                "--connectionString",
-                settings.mongodb_uri,
-            ],
+            args=[],
+            env={
+                "MDB_MCP_CONNECTION_STRING": settings.mongodb_uri
+            }
         )
     )
 
@@ -151,11 +151,12 @@ def create_arbitration_agent() -> Agent:
 
     # --- Build the Agent ---
     tools = [
-        gitlab_mcp,         # MCP: GitLab operations
         mongo_mcp,          # MCP: MongoDB ledger operations
         # arize_mcp,        # DISABLED
         elastic_mcp,        # MCP: Elastic log search and query
         fivetran_mcp,       # MCP: Fivetran sync orchestration
+        fetch_gitlab_mr_diff, # Custom: Direct GitLab API diff fetcher (workaround for broken MCP)
+        post_gitlab_mr_comment, # Custom: Direct GitLab API comment poster (workaround for broken MCP)
         analyze_diff,       # Custom: Deterministic heuristics analysis
         calculate_payment,  # Custom: Score-to-payment conversion
         index_evaluation_to_elastic, # Custom: Write evaluation to Elastic
