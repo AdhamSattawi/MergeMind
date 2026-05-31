@@ -6,13 +6,12 @@ This enforces business rules and budgets outside of the LLM's control.
 """
 
 from typing import Any, Dict
-
+from config.settings import settings
 
 def calculate_payment(
     impact_score: int,
     budget_remaining: float,
-    max_per_mr: float,
-    threshold: int
+    max_per_mr: float
 ) -> Dict[str, Any]:
     """
     Calculates the automated payment amount based on the impact score.
@@ -25,7 +24,6 @@ def calculate_payment(
         impact_score: The 0-100 score assigned by the agent.
         budget_remaining: Current balance in the project's budget pool.
         max_per_mr: Maximum allowable payment for a single MR.
-        threshold: Minimum score required to trigger a payment.
 
     Returns:
         Dict with payment details.
@@ -37,6 +35,7 @@ def calculate_payment(
             "reason": "Invalid impact score. Must be between 0 and 100.",
         }
 
+    threshold = settings.payment_threshold_score
     if impact_score < threshold:
         return {
             "payment_amount": 0.0,

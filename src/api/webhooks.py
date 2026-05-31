@@ -6,10 +6,12 @@ validates the payload, and triggers the Arbitration Agent for evaluation.
 """
 
 import logging
-from fastapi import APIRouter, HTTPException, Request, status, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Request, status, BackgroundTasks, Header
 
 from src.models.gitlab_payload import GitLabMergeRequestEvent
+from src.models.evaluation import CodeEvaluation
 from src.agent.arbitration_agent import create_arbitration_agent
+from config.settings import settings
 from google.adk.runners import InMemoryRunner
 from google.genai.types import Content, Part
 
@@ -25,7 +27,12 @@ router = APIRouter(prefix="/api/v1/webhooks", tags=["webhooks"])
     description="Accepts a GitLab webhook payload for Merge Request events "
     "and triggers the MergeMind Arbitration Agent.",
 )
-async def handle_gitlab_webhook(event: GitLabMergeRequestEvent, request: Request, background_tasks: BackgroundTasks):
+async def handle_gitlab_webhook(
+    event: GitLabMergeRequestEvent,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    x_gitlab_token: str = Header(default="")
+):
     """
     Handle incoming GitLab Merge Request webhook events.
 
@@ -35,6 +42,10 @@ async def handle_gitlab_webhook(event: GitLabMergeRequestEvent, request: Request
     3. Triggers the Arbitration Agent asynchronously.
     4. Returns 202 Accepted immediately.
     """
+    if settings.gitlab_webhook_secret and x_gitlab_token != settings.gitlab_webhook_secret:
+        logger.warning("Rejected webhook: invalid x-gitlab-token signature")
+        raise HTTPException(status_code=401, detail="Invalid webhook token")
+
     mr = event.object_attributes
     logger.info(
         "Received MR event: action=%s, mr_iid=%s, project=%s, author=%s",
@@ -93,7 +104,21 @@ def run_agent_task(event: GitLabMergeRequestEvent):
         for e in runner.run(user_id="webhook", session_id=str(mr.iid), new_message=message):
             responses.append(e)
             
-        logger.info(f"Agent finished evaluating MR {mr.iid}. Final Response: {responses[-1] if responses else 'No response'}")
-        
+        if not responses:
+            logger.warning(f"Agent finished evaluating MR {mr.iid} but returned no response.")
+            return
+
+        # Attempt to parse and validate the JSON output to enforce the schema
+        raw_response = responses[-1]
+        try:
+            # ADK often wraps JSON in markdown blocks, clean it first if needed
+            clean_json = raw_response.text.strip() if hasattr(raw_response, 'text') else str(raw_response)
+            if clean_json.startswith("```json"):
+                clean_json = clean_json[7:-3].strip()
+            evaluation = CodeEvaluation.model_validate_json(clean_json)
+            logger.info(f"Agent successfully evaluated MR {mr.iid}. Validated Schema: impact_score={evaluation.impact_score}")
+        except Exception as parse_err:
+            logger.error(f"Agent returned invalid schema for MR {mr.iid}. Raw: {raw_response}. Error: {parse_err}")
+            
     except Exception as e:
         logger.error(f"Agent evaluation failed for MR {mr.iid}: {e}", exc_info=True)

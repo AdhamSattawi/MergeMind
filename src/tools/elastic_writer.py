@@ -6,6 +6,20 @@ from config.settings import settings
 
 logger = logging.getLogger(__name__)
 
+import functools
+
+@functools.lru_cache()
+def get_es_client() -> Elasticsearch:
+    if settings.elastic_cloud_id:
+        return Elasticsearch(
+            cloud_id=settings.elastic_cloud_id,
+            api_key=settings.elastic_api_key
+        )
+    return Elasticsearch(
+        settings.elastic_id,
+        api_key=settings.elastic_api_key
+    )
+
 def index_evaluation_to_elastic(merge_request_iid: int, project_name: str, impact_score: int, summary_verdict: str) -> str:
     """
     Indexes the evaluation summary and impact score to Elasticsearch for future searchability.
@@ -21,16 +35,7 @@ def index_evaluation_to_elastic(merge_request_iid: int, project_name: str, impac
         A success message indicating the document was indexed.
     """
     try:
-        if settings.elastic_cloud_id:
-            es = Elasticsearch(
-                cloud_id=settings.elastic_cloud_id,
-                api_key=settings.elastic_api_key
-            )
-        else:
-            es = Elasticsearch(
-                settings.elastic_id,
-                api_key=settings.elastic_api_key
-            )
+        es = get_es_client()
         
         doc = {
             "merge_request_iid": merge_request_iid,

@@ -8,12 +8,15 @@ for end-to-end testing of the webhooks and agent trigger pipeline.
 import datetime
 import httpx
 import asyncio
+import os
+from dotenv import load_dotenv
 
+load_dotenv()
 
 async def simulate_webhook():
     """Sends a mock GitLab webhook to the local server."""
     
-    url = "http://localhost:8000/api/v1/webhooks/gitlab"
+    url = "http://127.0.0.1:8000/api/v1/webhooks/gitlab"
     
     # Mock payload matching the GitLab webhook schema
     payload = {
@@ -46,11 +49,16 @@ async def simulate_webhook():
         }
     }
 
+    headers = {}
+    webhook_secret = os.getenv("GITLAB_WEBHOOK_SECRET")
+    if webhook_secret:
+        headers["x-gitlab-token"] = webhook_secret
+
     print(f"Sending mock webhook to {url}...")
     
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.post(url, json=payload)
+            response = await client.post(url, json=payload, headers=headers)
             
         print(f"Status Code: {response.status_code}")
         print(f"Response: {response.json()}")

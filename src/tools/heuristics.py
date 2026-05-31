@@ -45,9 +45,17 @@ def analyze_diff(diff_content: str) -> Dict[str, Any]:
     lines = diff_content.splitlines()
     current_file = None
 
+    is_new_file = False
+
     for line in lines:
         # Detect file paths (e.g., "+++ b/src/main.py")
-        if line.startswith("+++ b/") or line.startswith("--- a/"):
+        if line.startswith("--- a/"):
+            is_new_file = line == "--- a/dev/null"
+            filename = line[6:]
+            if filename != "/dev/null":
+                files_modified.add(filename)
+                
+        elif line.startswith("+++ b/"):
             filename = line[6:]
             if filename != "/dev/null":
                 current_file = filename
@@ -60,9 +68,7 @@ def analyze_diff(diff_content: str) -> Dict[str, Any]:
 
                 # Check if it's a test file
                 if "test" in filename.lower():
-                    if line.startswith("+++ b/") and "/dev/null" in diff_content:
-                        # Simplification: assuming new file if /dev/null is present
-                        # In a real unified diff parser, we'd check the index/status
+                    if is_new_file:
                         test_files_added += 1
                     else:
                         test_files_modified += 1

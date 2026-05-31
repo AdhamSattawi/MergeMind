@@ -21,9 +21,13 @@ def setup_tracing():
         from openinference.instrumentation.google_adk import GoogleADKInstrumentor
         import os
 
-        if not os.getenv("PHOENIX_API_KEY"):
-            logger.warning("Phoenix credentials missing. Tracing will not be enabled.")
+        from config.settings import settings
+
+        if not settings.arize_api_key:
+            logger.warning("Arize API key missing in settings. Tracing will not be enabled.")
             return
+            
+        os.environ["PHOENIX_API_KEY"] = settings.arize_api_key
 
         # Initialize the Phoenix OTel exporter. It automatically reads PHOENIX_API_KEY
         # and PHOENIX_COLLECTOR_ENDPOINT from the environment.

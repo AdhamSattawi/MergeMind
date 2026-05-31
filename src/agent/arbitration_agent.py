@@ -31,6 +31,7 @@ class VertexGemini(Gemini):
             location="us-central1"
         )
 
+@functools.lru_cache()
 def create_arbitration_agent() -> Agent:
     """
     Create and configure the MergeMind Arbitration Agent.
