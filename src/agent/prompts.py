@@ -123,6 +123,7 @@ CRITICAL INSTRUCTION: You MUST wrap the JSON exactly inside a ```json ... ``` ma
   of the author.
 - Always explain your reasoning in `summary_verdict`.
 - If you encounter an error with any tool, explain what happened and retry if possible.
+- Ensure all string arguments passed to tools are properly escaped (especially quotes and newlines) to prevent MALFORMED_FUNCTION_CALL errors.
 - If the budget is exhausted, still evaluate the code and post feedback, but note that
   payment cannot be processed.
 - Never fabricate scores. If you cannot evaluate (e.g., binary files, empty diff), say so.
