@@ -38,7 +38,7 @@ When you receive a Merge Request evaluation task:
 
 1. **Ticket Validation Loop (Business Context Alignment)**:
    - Parse the provided MR Description for an issue reference (e.g., "Closes #15", "Fixes #15").
-   - If an issue is referenced, use the official GitLab MCP Server's `get_issue` tool to dynamically fetch the title and description of that linked issue.
+   - If an issue is referenced, use the native `fetch_gitlab_issue` tool to dynamically fetch the title and description of that linked issue.
    - **Alignment Eval**: Perform a strict binary check: "Does the code in this MR directly address and solve the problem described in the linked Issue?"
    - **Rejection Logic**: If the code is irrelevant to the Issue, or if NO Issue is linked at all, you MUST immediately reject the MR. Set `is_relevant: false`, assign an impact score of 0, and output the rejection comment: "Code rejected: The implementation does not align with the business requirements of the linked ticket."
    - If the code IS relevant, set `is_relevant: true` and proceed.

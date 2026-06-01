@@ -16,7 +16,7 @@ from mcp.client.stdio import StdioServerParameters
 
 from config.settings import settings
 from src.agent.prompts import ARBITRATION_SYSTEM_PROMPT
-from src.tools.heuristics import analyze_diff, fetch_gitlab_mr_diff, post_gitlab_mr_comment
+from src.tools.heuristics import analyze_diff, fetch_gitlab_mr_diff, post_gitlab_mr_comment, fetch_gitlab_issue
 from src.tools.scoring import calculate_payment
 from src.tools.elastic_writer import index_evaluation_to_elastic
 
@@ -156,6 +156,7 @@ def create_arbitration_agent() -> Agent:
         fivetran_mcp,       # MCP: Fivetran sync orchestration
         fetch_gitlab_mr_diff, # Custom: Direct GitLab API diff fetcher (workaround for broken MCP)
         post_gitlab_mr_comment, # Custom: Direct GitLab API comment poster (workaround for broken MCP)
+        fetch_gitlab_issue, # Custom: Direct GitLab API issue fetcher (official MCP missing get_issue)
         analyze_diff,       # Custom: Deterministic heuristics analysis
         calculate_payment,  # Custom: Score-to-payment conversion
         index_evaluation_to_elastic, # Custom: Write evaluation to Elastic

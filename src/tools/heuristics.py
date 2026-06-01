@@ -76,6 +76,31 @@ def post_gitlab_mr_comment(project_id: str, merge_request_iid: str, body: str) -
         return f"Error posting comment: {e}"
 
 
+def fetch_gitlab_issue(project_id: str, issue_iid: str) -> str:
+    """
+    Fetches the title and description of a GitLab Issue directly via the GitLab API.
+    Use this tool to fetch issue context for the Ticket Validation Loop, as the official
+    GitLab MCP server does not provide a tool to read existing issues.
+
+    Args:
+        project_id: The ID of the GitLab project.
+        issue_iid: The IID of the issue to fetch.
+
+    Returns:
+        A string containing the issue title and description, or an error message.
+    """
+    url = f"{settings.gitlab_api_url}/projects/{project_id}/issues/{issue_iid}"
+    headers = {"PRIVATE-TOKEN": settings.gitlab_personal_access_token}
+    
+    try:
+        response = httpx.get(url, headers=headers)
+        response.raise_for_status()
+        issue = response.json()
+        return f"Issue Title: {issue.get('title')}\nIssue Description: {issue.get('description')}"
+    except Exception as e:
+        return f"Error fetching issue: {e}"
+
+
 def analyze_diff(diff_content: str) -> Dict[str, Any]:
     """
     Analyzes a git unified diff and extracts heuristic metrics.
