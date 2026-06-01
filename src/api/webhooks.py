@@ -137,86 +137,77 @@ def run_agent_task(event: GitLabMergeRequestEvent):
         )
         message = Content(role="user", parts=[Part.from_text(text=task_prompt)])
         
-        # Retry loop for LLM transient errors (e.g., MALFORMED_FUNCTION_CALL)
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                # Instantiate a fresh Agent and Runner per attempt to guarantee a new asyncio event loop
-                agent = get_arbitration_agent()
-                runner = InMemoryRunner(agent=agent, app_name="mergemind")
-                
-                try:
-                    runner.session_service.create_session_sync(app_name="mergemind", user_id="webhook", session_id=str(mr.iid))
-                except Exception:
-                    pass
-                responses = []
-                for e in runner.run(user_id="webhook", session_id=str(mr.iid), new_message=message):
-                    responses.append(e)
-                    
-                if not responses:
-                    logger.warning(f"Agent finished evaluating MR {mr.iid} but returned no response. Retrying...")
-                    continue
+        agent = get_arbitration_agent()
+        runner = InMemoryRunner(agent=agent, app_name="mergemind")
+        
+        try:
+            runner.session_service.create_session_sync(app_name="mergemind", user_id="webhook", session_id=str(mr.iid))
+        except Exception:
+            pass
+        responses = []
+        for e in runner.run(user_id="webhook", session_id=str(mr.iid), new_message=message):
+            responses.append(e)
+            
+        if not responses:
+            logger.warning(f"Agent finished evaluating MR {mr.iid} but returned no response.")
+            return
 
-                raw_response = responses[-1]
-                raw_str = str(raw_response)
-                
-                # Check if the agent crashed with a malformed function call
-                if "MALFORMED_FUNCTION_CALL" in raw_str or "error_code=" in raw_str:
-                    logger.warning(f"Agent crashed during execution (Attempt {attempt + 1}/{max_retries}). Retrying...")
-                    continue
+        raw_response = responses[-1]
+        raw_str = str(raw_response)
+        
+        # Check if the agent crashed with a malformed function call
+        if "MALFORMED_FUNCTION_CALL" in raw_str or "error_code=" in raw_str:
+            logger.error(f"Agent crashed during execution due to an LLM hallucination (e.g. MALFORMED_FUNCTION_CALL). MR: {mr.iid}")
+            return
 
-                import re
-                
-                # Look for markdown JSON block first
-                json_match = re.search(r'```json\s*(.*?)\s*```', raw_str, re.DOTALL)
-                if json_match:
-                    clean_json = json_match.group(1).strip()
-                else:
-                    # Fallback to finding the first { ... } block (non-greedy)
-                    json_match = re.search(r'\{.*?\}', raw_str, re.DOTALL)
-                    if json_match:
-                        clean_json = json_match.group(0).strip()
-                    else:
-                        clean_json = raw_str
+        import re
+        
+        # Look for markdown JSON block first
+        json_match = re.search(r'```json\s*(.*?)\s*```', raw_str, re.DOTALL)
+        if json_match:
+            clean_json = json_match.group(1).strip()
+        else:
+            # Fallback to finding the first { ... } block (non-greedy)
+            json_match = re.search(r'\{.*?\}', raw_str, re.DOTALL)
+            if json_match:
+                clean_json = json_match.group(0).strip()
+            else:
+                clean_json = raw_str
 
-                # Unescape heavily stringified quotes if ADK repr mangled them
-                clean_json = clean_json.replace('\\"', '"')
-                
-                # Clean up any escaped single quotes that ADK's repr might have added
-                if clean_json.startswith("'{") and clean_json.endswith("}'"):
-                    clean_json = clean_json[1:-1]
-                    
-                evaluation = CodeEvaluation.model_validate_json(clean_json)
-                
-                # --- Pretty Logging for Video Recording ---
-                box_width = 70
-                logger.info("\n" + "="*box_width)
-                logger.info(f" 🤖 MERGEMIND EVALUATION COMPLETE ".center(box_width, "="))
-                logger.info("="*box_width)
-                logger.info(f" Merge Request : #{mr.iid}")
-                logger.info(f" Project       : {event.project.name}")
-                logger.info(f" Relevant      : {'✅ YES' if evaluation.is_relevant else '❌ NO'}")
-                logger.info(f" Suspicious    : {'⚠️ YES' if evaluation.is_suspicious else '✅ NO'}")
-                logger.info(f" Impact Score  : {evaluation.impact_score}/100")
-                logger.info("-" * box_width)
-                logger.info(" Metrics:")
-                logger.info(f"   - Logic & Efficiency      : {evaluation.metrics.logic_and_efficiency}")
-                logger.info(f"   - Architectural Soundness : {evaluation.metrics.architectural_soundness}")
-                logger.info(f"   - Robustness & Security   : {evaluation.metrics.robustness_and_security}")
-                logger.info(f"   - Test Coverage           : {evaluation.metrics.test_coverage_contribution}")
-                logger.info("-" * box_width)
-                logger.info(f" Verdict:\n   {evaluation.summary_verdict}")
-                logger.info("="*box_width + "\n")
-                
-                # Success! Break out of the retry loop.
-                return
-                
-            except Exception as parse_err:
-                logger.warning(f"Failed to parse agent output (Attempt {attempt + 1}/{max_retries}). Error: {parse_err}")
-                if attempt == max_retries - 1:
-                    raw_excerpt = str(raw_response)[:200] + "..." if len(str(raw_response)) > 200 else str(raw_response)
-                    logger.error(f"Agent permanently failed to return valid schema for MR {mr.iid}.")
-                    logger.error(f"Raw Output Excerpt: {raw_excerpt}")
+        # Unescape heavily stringified quotes if ADK repr mangled them
+        clean_json = clean_json.replace('\\"', '"')
+        
+        # Clean up any escaped single quotes that ADK's repr might have added
+        if clean_json.startswith("'{") and clean_json.endswith("}'"):
+            clean_json = clean_json[1:-1]
+            
+        try:
+            evaluation = CodeEvaluation.model_validate_json(clean_json)
+            
+            # --- Pretty Logging for Video Recording ---
+            box_width = 70
+            logger.info("\n" + "="*box_width)
+            logger.info(f" 🤖 MERGEMIND EVALUATION COMPLETE ".center(box_width, "="))
+            logger.info("="*box_width)
+            logger.info(f" Merge Request : #{mr.iid}")
+            logger.info(f" Project       : {event.project.name}")
+            logger.info(f" Relevant      : {'✅ YES' if evaluation.is_relevant else '❌ NO'}")
+            logger.info(f" Suspicious    : {'⚠️ YES' if evaluation.is_suspicious else '✅ NO'}")
+            logger.info(f" Impact Score  : {evaluation.impact_score}/100")
+            logger.info("-" * box_width)
+            logger.info(" Metrics:")
+            logger.info(f"   - Logic & Efficiency      : {evaluation.metrics.logic_and_efficiency}")
+            logger.info(f"   - Architectural Soundness : {evaluation.metrics.architectural_soundness}")
+            logger.info(f"   - Robustness & Security   : {evaluation.metrics.robustness_and_security}")
+            logger.info(f"   - Test Coverage           : {evaluation.metrics.test_coverage_contribution}")
+            logger.info("-" * box_width)
+            logger.info(f" Verdict:\n   {evaluation.summary_verdict}")
+            logger.info("="*box_width + "\n")
+            
+        except Exception as parse_err:
+            raw_excerpt = str(raw_response)[:200] + "..." if len(str(raw_response)) > 200 else str(raw_response)
+            logger.error(f"Agent permanently failed to return valid schema for MR {mr.iid}. Error: {parse_err}")
+            logger.error(f"Raw Output Excerpt: {raw_excerpt}")
             
     except Exception as e:
         logger.error(f"Agent evaluation failed for MR {mr.iid}: {e}", exc_info=True)
