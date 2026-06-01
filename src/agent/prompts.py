@@ -56,7 +56,7 @@ When you receive a Merge Request evaluation task:
    system is currently unstable or under attack, lower the robustness score and note it
    in your evaluation.
 6. **Check budget** — Use MongoDB MCP `find` on the `budget_pools` collection to verify
-   remaining budget for this project.
+   remaining budget for this project. IMPORTANT: Ensure your query uses `project_id` as an INTEGER, not a string (e.g. `{"project_id": 82692165}`).
 7. **Calculate payment** — Call `calculate_payment` with your impact score and the budget.
 7. **Record to ledger** — Use MongoDB MCP `insert-many` on the `streaming_ledger` collection
    to record the evaluation and payment.
