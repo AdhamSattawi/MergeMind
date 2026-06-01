@@ -156,8 +156,9 @@ def run_agent_task(event: GitLabMergeRequestEvent):
         raw_str = str(raw_response)
         
         # Check if the agent crashed with a malformed function call
-        if "MALFORMED_FUNCTION_CALL" in raw_str or "error_code=" in raw_str:
+        if "MALFORMED_FUNCTION_CALL" in raw_str:
             logger.error(f"Agent crashed during execution due to an LLM hallucination (e.g. MALFORMED_FUNCTION_CALL). MR: {mr.iid}")
+            logger.error(f"Raw Crash Data: {raw_str}")
             return
 
         import re
