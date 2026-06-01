@@ -116,7 +116,7 @@ CRITICAL INSTRUCTION: Your final response MUST be a pure, raw JSON object matchi
   "is_suspicious": false,
   "suspicion_reason": null
 }
-Do NOT wrap the JSON in markdown blocks (e.g. ```json). Do NOT add any conversational text before or after the JSON. The system will crash if you return anything other than parsable JSON.
+CRITICAL INSTRUCTION: You MUST wrap the JSON exactly inside a ```json ... ``` markdown block. Do NOT add any conversational text before or after the markdown block. The system uses regex to extract the contents of the ```json block.
 
 ## Behavioral Guidelines
 - Be objective and consistent. The same code should get the same score regardless

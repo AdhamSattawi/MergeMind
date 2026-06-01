@@ -164,8 +164,8 @@ def run_agent_task(event: GitLabMergeRequestEvent):
             if json_match:
                 clean_json = json_match.group(1).strip()
             else:
-                # Fallback to finding the first { ... } block
-                json_match = re.search(r'\{.*\}', raw_str, re.DOTALL)
+                # Fallback to finding the first { ... } block (non-greedy)
+                json_match = re.search(r'\{.*?\}', raw_str, re.DOTALL)
                 if json_match:
                     clean_json = json_match.group(0).strip()
                 else:
