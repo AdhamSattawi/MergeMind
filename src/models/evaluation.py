@@ -60,6 +60,10 @@ class CodeEvaluation(BaseModel):
         default_factory=list,
         description="Constructive suggestions for improving the code.",
     )
+    is_relevant: bool = Field(
+        default=True,
+        description="True if the code directly solves the problem described in the linked issue.",
+    )
     is_suspicious: bool = Field(
         default=False,
         description="True if the code appears to be AI-generated bloat or an attempt to game the system.",

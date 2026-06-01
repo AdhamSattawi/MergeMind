@@ -128,7 +128,15 @@ def run_agent_task(event: GitLabMergeRequestEvent):
         agent = get_arbitration_agent()
         runner = InMemoryRunner(agent=agent, app_name="mergemind")
         
-        task_prompt = f"Please evaluate Merge Request IID {mr.iid} in the project '{event.project.name}' (Project ID: {event.project.id}). Ensure you do self-introspection first, check heuristics, and finally execute the payment and ledger logic."
+        task_prompt = (
+            f"Please evaluate Merge Request IID {mr.iid} in the project '{event.project.name}' "
+            f"(Project ID: {event.project.id}).\n\n"
+            f"MR Title: {mr.title}\n"
+            f"MR Description: {mr.description}\n\n"
+            "Ensure you do self-introspection first, check heuristics, perform the Ticket Validation Loop "
+            "(checking if the code aligns with a linked issue in the description), and finally execute "
+            "the payment and ledger logic."
+        )
         message = Content(role="user", parts=[Part.from_text(text=task_prompt)])
         
         try:
@@ -171,9 +179,31 @@ def run_agent_task(event: GitLabMergeRequestEvent):
                 clean_json = clean_json[1:-1]
                 
             evaluation = CodeEvaluation.model_validate_json(clean_json)
-            logger.info(f"Agent successfully evaluated MR {mr.iid}. Validated Schema: impact_score={evaluation.impact_score}")
+            
+            # --- Pretty Logging for Video Recording ---
+            box_width = 70
+            logger.info("\n" + "="*box_width)
+            logger.info(f" 🤖 MERGEMIND EVALUATION COMPLETE ".center(box_width, "="))
+            logger.info("="*box_width)
+            logger.info(f" Merge Request : #{mr.iid}")
+            logger.info(f" Project       : {event.project.name}")
+            logger.info(f" Relevant      : {'✅ YES' if evaluation.is_relevant else '❌ NO'}")
+            logger.info(f" Suspicious    : {'⚠️ YES' if evaluation.is_suspicious else '✅ NO'}")
+            logger.info(f" Impact Score  : {evaluation.impact_score}/100")
+            logger.info("-" * box_width)
+            logger.info(" Metrics:")
+            logger.info(f"   - Logic & Efficiency      : {evaluation.metrics.logic_and_efficiency}")
+            logger.info(f"   - Architectural Soundness : {evaluation.metrics.architectural_soundness}")
+            logger.info(f"   - Robustness & Security   : {evaluation.metrics.robustness_and_security}")
+            logger.info(f"   - Test Coverage           : {evaluation.metrics.test_coverage_contribution}")
+            logger.info("-" * box_width)
+            logger.info(f" Verdict:\n   {evaluation.summary_verdict}")
+            logger.info("="*box_width + "\n")
+            
         except Exception as parse_err:
-            logger.error(f"Agent returned invalid schema for MR {mr.iid}. Raw: {raw_response}. Error: {parse_err}")
+            raw_excerpt = str(raw_response)[:200] + "..." if len(str(raw_response)) > 200 else str(raw_response)
+            logger.error(f"Agent returned invalid schema for MR {mr.iid}. Error: {parse_err}")
+            logger.error(f"Raw Output Excerpt: {raw_excerpt}")
             
     except Exception as e:
         logger.error(f"Agent evaluation failed for MR {mr.iid}: {e}", exc_info=True)

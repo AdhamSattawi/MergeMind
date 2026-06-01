@@ -109,6 +109,7 @@ Watch the terminal or your Arize dashboard as the agent begins reasoning!
 1. **Open Source Bounties (Liquid Payments):** Automatically pay contributors for merged PRs based on the quality and impact of their code.
 2. **HR Screening:** Evaluate candidate take-home assignments objectively without taking up senior engineering time.
 3. **Performance Reviews:** Track the "Impact Score" of developers over a year, ignoring trivial line counts and focusing on architectural value.
+4. **EdTech (Education Technology):** Automatically evaluate and grade student coding assignments, checking if their code solves the specific problem statement (Ticket Validation Loop) and giving them detailed feedback.
 
 ---
 

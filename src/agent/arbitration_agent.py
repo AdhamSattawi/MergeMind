@@ -50,13 +50,11 @@ def create_arbitration_agent() -> Agent:
 
     # --- MCP Tool: GitLab ---
     # Provides the agent with capabilities to interact with GitLab:
-    # - get_merge_request / get_merge_request_diffs: Fetch MR details and code changes
-    # - get_file_contents: Fetch full file context for deeper analysis
-    # - create_note: Post evaluation results as comments on the MR
+    # - get_issue / get_merge_request / search_issues
     gitlab_mcp = McpToolset(
         connection_params=StdioServerParameters(
             command="npx",
-            args=["-y", "@zereight/mcp-gitlab@1.0.64"],
+            args=["-y", "@modelcontextprotocol/server-gitlab"],
             env={
                 "GITLAB_PERSONAL_ACCESS_TOKEN": settings.gitlab_personal_access_token,
                 "GITLAB_API_URL": settings.gitlab_api_url,
@@ -151,6 +149,7 @@ def create_arbitration_agent() -> Agent:
 
     # --- Build the Agent ---
     tools = [
+        gitlab_mcp,         # MCP: Official GitLab server
         mongo_mcp,          # MCP: MongoDB ledger operations
         # arize_mcp,        # DISABLED
         elastic_mcp,        # MCP: Elastic log search and query
