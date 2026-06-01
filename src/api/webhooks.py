@@ -125,8 +125,6 @@ def run_agent_task(event: GitLabMergeRequestEvent):
     mr = event.object_attributes
     try:
         logger.info(f"Starting background agent evaluation for MR {mr.iid}...")
-        agent = get_arbitration_agent()
-        runner = InMemoryRunner(agent=agent, app_name="mergemind")
         
         task_prompt = (
             f"Please evaluate Merge Request IID {mr.iid} in the project '{event.project.name}' "
@@ -139,15 +137,18 @@ def run_agent_task(event: GitLabMergeRequestEvent):
         )
         message = Content(role="user", parts=[Part.from_text(text=task_prompt)])
         
-        try:
-            runner.session_service.create_session_sync(app_name="mergemind", user_id="webhook", session_id=str(mr.iid))
-        except Exception:
-            pass
-            
         # Retry loop for LLM transient errors (e.g., MALFORMED_FUNCTION_CALL)
         max_retries = 3
         for attempt in range(max_retries):
             try:
+                # Instantiate a fresh Agent and Runner per attempt to guarantee a new asyncio event loop
+                agent = get_arbitration_agent()
+                runner = InMemoryRunner(agent=agent, app_name="mergemind")
+                
+                try:
+                    runner.session_service.create_session_sync(app_name="mergemind", user_id="webhook", session_id=str(mr.iid))
+                except Exception:
+                    pass
                 responses = []
                 for e in runner.run(user_id="webhook", session_id=str(mr.iid), new_message=message):
                     responses.append(e)
