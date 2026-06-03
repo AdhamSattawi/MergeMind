@@ -153,8 +153,17 @@ def run_agent_task(event: GitLabMergeRequestEvent):
             return
 
         raw_response = responses[-1]
-        raw_str = str(raw_response)
         
+        # Safely extract full text without relying on str() which might truncate with '...'
+        raw_str = ""
+        if hasattr(raw_response, "content") and hasattr(raw_response.content, "parts"):
+            for part in raw_response.content.parts:
+                if hasattr(part, "text") and part.text:
+                    raw_str += part.text
+        else:
+            raw_str = str(raw_response)
+            
+
         # Check if the agent crashed with a malformed function call
         if "MALFORMED_FUNCTION_CALL" in raw_str:
             logger.error(f"Agent crashed during execution due to an LLM hallucination (e.g. MALFORMED_FUNCTION_CALL). MR: {mr.iid}")

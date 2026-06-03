@@ -10,8 +10,7 @@ from config.settings import settings
 
 def calculate_payment(
     impact_score: int,
-    budget_remaining: float,
-    max_per_mr: float
+    budget_remaining: float
 ) -> Dict[str, Any]:
     """
     Calculates the automated payment amount based on the impact score.
@@ -23,7 +22,6 @@ def calculate_payment(
     Args:
         impact_score: The 0-100 score assigned by the agent.
         budget_remaining: Current balance in the project's budget pool.
-        max_per_mr: Maximum allowable payment for a single MR.
 
     Returns:
         Dict with payment details.
@@ -50,8 +48,8 @@ def calculate_payment(
             "reason": "Budget pool is exhausted.",
         }
 
-    # Calculation: Proportional payment based on score, capped at max_per_mr
-    calculated_payment = (impact_score / 100.0) * max_per_mr
+    # Calculation: Proportional payment based on score, capped at settings.max_payment_per_mr
+    calculated_payment = (impact_score / 100.0) * settings.max_payment_per_mr
 
     # Cap at remaining budget
     actual_payment = min(calculated_payment, budget_remaining)

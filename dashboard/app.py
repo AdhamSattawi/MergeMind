@@ -101,7 +101,7 @@ st.markdown("<p style='text-align: center; font-size: 1.5rem; color: #94a3b8; ma
 def live_dashboard():
     # Fetch Data
     ledger_docs = list(db.streaming_ledger.find().sort("timestamp", -1).limit(50))
-    pool = db.budget_pools.find_one({"pool_id": "demo_pool_1"})
+    pool = db.budget_pools.find_one({"project_id": 82692165})
     
     col_metrics1, col_metrics2, col_metrics3 = st.columns(3)
     
@@ -137,12 +137,12 @@ def live_dashboard():
             # Formatting the dataframe
             display_df = df.copy()
             if "timestamp" in display_df.columns:
-                display_df["timestamp"] = pd.to_datetime(display_df["timestamp"]).dt.strftime('%Y-%m-%d %H:%M:%S')
+                display_df["timestamp"] = pd.to_datetime(display_df["timestamp"], format='mixed').dt.strftime('%Y-%m-%d %H:%M:%S')
             if "payment_amount" in display_df.columns:
                 display_df["payment_amount"] = display_df["payment_amount"].apply(lambda x: f"${x:.2f}")
             
             # Select columns to show
-            cols_to_show = ["timestamp", "merge_request_id", "author_username", "impact_score", "payment_amount"]
+            cols_to_show = ["timestamp", "merge_request_iid", "author_username", "impact_score", "payment_amount"]
             cols_present = [c for c in cols_to_show if c in display_df.columns]
             
             st.dataframe(
@@ -155,7 +155,7 @@ def live_dashboard():
             st.markdown("### 📈 Impact Score Trend")
             if "timestamp" in df.columns and "impact_score" in df.columns:
                 chart_df = df[["timestamp", "impact_score"]].copy()
-                chart_df["timestamp"] = pd.to_datetime(chart_df["timestamp"])
+                chart_df["timestamp"] = pd.to_datetime(chart_df["timestamp"], format='mixed')
                 chart_df = chart_df.sort_values("timestamp")
                 
                 chart = alt.Chart(chart_df).mark_area(
@@ -183,7 +183,7 @@ def live_dashboard():
         if ledger_docs:
             latest = ledger_docs[0]
             with st.container(border=True):
-                st.markdown(f"<h3 style='margin-top:0;'>MR #{latest.get('merge_request_id', 'Unknown')}</h3>", unsafe_allow_html=True)
+                st.markdown(f"<h3 style='margin-top:0;'>MR #{latest.get('merge_request_iid', 'Unknown')}</h3>", unsafe_allow_html=True)
                 st.markdown(f"**Author:** `@{latest.get('author_username', 'developer')}`")
                 
                 score = latest.get('impact_score', 0)

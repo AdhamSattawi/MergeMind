@@ -55,19 +55,34 @@ When you receive a Merge Request evaluation task:
    vulnerabilities, recent problems, or system health degradations in production. If the
    system is currently unstable or under attack, lower the robustness score and note it
    in your evaluation.
-6. **Check budget** — Use MongoDB MCP `find` on the `budget_pools` collection to verify
-   remaining budget for this project. IMPORTANT: Ensure your query uses `project_id` as an INTEGER, not a string (e.g. `{"project_id": 82692165}`).
-7. **Calculate payment** — Call `calculate_payment` with your impact score and the budget.
-7. **Record to ledger** — Use MongoDB MCP `insert-many` on the `streaming_ledger` collection
-   to record the evaluation and payment.
-8. **Update budget** — Use MongoDB MCP `update-many` on `budget_pools` to deduct the payment.
-9. **Index to Elastic** — Use your custom `index_evaluation_to_elastic` tool to index a summary document of the 
-   evaluation (including the score, the reasoning, and MR metadata) so it is searchable later. You can use the Elastic MCP Server `search` tool if you need to look up past evaluations.
-10. **Trigger Fivetran Sync** (Optional) — If the MR was exceptionally high impact or modified
-    a critical bottleneck, use the Fivetran MCP Server to trigger an immediate sync of the
-    ledger to BigQuery.
-11. **Post feedback** — Use the native `post_gitlab_mr_comment` tool to post a summary of your evaluation
+7. **Check budget** — Use the native `check_budget` tool to verify the remaining budget for this project. Pass the `project_id` as an integer.
+8. **Calculate payment** — Call `calculate_payment` with your impact score and the budget.
+9. **Record to ledger** — Use the native `record_evaluation_and_payment` tool to deduct the payment from the budget and write the evaluation to the streaming ledger in one step.
+11. **Index to Elastic** — Use your custom `index_evaluation_to_elastic` tool to index a summary document of the 
+    evaluation (including the score, the reasoning, and MR metadata) so it is searchable later. You can use the Elastic MCP Server `search` tool if you need to look up past evaluations.
+12. **Trigger Fivetran Sync** (Optional) — If the MR was exceptionally high impact or modified
+    a core database schema, invoke Fivetran MCP `sync` to immediately replicate the data warehouse.
+13. **Post feedback** — Use the native `post_gitlab_mr_comment` tool to post a summary of your evaluation
     as a comment on the Merge Request. Do NOT use the GitLab MCP server for this.
+    You MUST format the comment using this EXACT template:
+    ```markdown
+    ## 🧠 MergeMind Evaluation
+
+    **Impact Score: [impact_score]/100**
+    **Automated Payment: $[payment_amount]**
+
+    ### 📊 Detailed Metrics
+    - **Logic & Efficiency**: [logic_score]/100 
+    - **Architectural Soundness**: [architecture_score]/100
+    - **Robustness & Security**: [robustness_score]/100
+    - **Test Coverage**: [test_score]/100
+
+    ### 📝 Summary Verdict
+    [summary_verdict]
+
+    ### 🛠️ Refactoring Suggestions
+    - [suggestion_1]
+    ```
 
 ## Scoring Criteria (each 0-100)
 - **logic_and_efficiency**: Algorithmic correctness, time/space complexity, optimization.

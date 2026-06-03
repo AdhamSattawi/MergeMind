@@ -7,6 +7,7 @@ GitLab MCP, MongoDB MCP, and custom heuristics/scoring tools.
 
 import logging
 import functools
+import os
 
 from google.adk.agents import Agent
 from google.adk.tools import McpToolset
@@ -19,6 +20,7 @@ from src.agent.prompts import ARBITRATION_SYSTEM_PROMPT
 from src.tools.heuristics import analyze_diff, fetch_gitlab_mr_diff, post_gitlab_mr_comment, fetch_gitlab_issue
 from src.tools.scoring import calculate_payment
 from src.tools.elastic_writer import index_evaluation_to_elastic
+from src.tools.ledger import check_budget, record_evaluation_and_payment
 
 logger = logging.getLogger("mergemind.agent")
 
@@ -55,27 +57,17 @@ def create_arbitration_agent() -> Agent:
             command="npx",
             args=["-y", "@modelcontextprotocol/server-gitlab"],
             env={
+                **os.environ,
                 "GITLAB_PERSONAL_ACCESS_TOKEN": settings.gitlab_personal_access_token,
                 "GITLAB_API_URL": settings.gitlab_api_url,
             },
         )
     )
 
-    # --- MCP Tool: MongoDB ---
-    # Provides the agent with capabilities to interact with the database:
-    # - find: Query budget_pools to check remaining escrow
-    # - insertOne: Write evaluation records to streaming_ledger
-    # - updateOne: Deduct payment amounts from budget_pools
-    # - aggregate: Run analytical queries on historical evaluations
-    mongo_mcp = McpToolset(
-        connection_params=StdioServerParameters(
-            command="mongodb-mcp-server",
-            args=[],
-            env={
-                "MDB_MCP_CONNECTION_STRING": settings.mongodb_uri
-            }
-        )
-    )
+    # --- Custom Native Tool: MongoDB Ledger ---
+    # Replaced the external mongodb-mcp-server with native Python tools
+    # because the official MCP server hangs indefinitely on Atlas clusters
+    # during schema introspection of internal databases.
 
     # --- MCP Tool: Arize Phoenix ---
     # Disabled because phoenix-mcp is not installed in the Docker container.
@@ -96,13 +88,17 @@ def create_arbitration_agent() -> Agent:
     # Provides the agent with capabilities to interact with Elasticsearch:
     # - It will index a summary of every evaluated Merge Request, creating a searchable knowledge base
     #   of past decisions, ensuring consistency across reviews over time.
-    elastic_env = {"OTEL_SDK_DISABLED": "true"}
+    elastic_env = {**os.environ}
+    elastic_env["OTEL_SDK_DISABLED"] = "true"
+    if settings.elastic_api_key:
+        elastic_env["ELASTIC_API_KEY"] = settings.elastic_api_key
+    elif settings.elastic_username and settings.elastic_password:
+        elastic_env["ELASTIC_USERNAME"] = settings.elastic_username
+        elastic_env["ELASTIC_PASSWORD"] = settings.elastic_password
     if settings.elastic_id:
         elastic_env["ES_URL"] = settings.elastic_id
     if settings.elastic_cloud_id:
         elastic_env["ES_CLOUD_ID"] = settings.elastic_cloud_id
-    if settings.elastic_api_key:
-        elastic_env["ES_API_KEY"] = settings.elastic_api_key
 
     elastic_mcp = McpToolset(
         connection_params=StdioServerParameters(
@@ -121,6 +117,7 @@ def create_arbitration_agent() -> Agent:
             command="python",
             args=["src/tools/fivetran_mcp/server.py"],
             env={
+                **os.environ,
                 "FIVETRAN_API_KEY": settings.fivetran_api_key,
                 "FIVETRAN_API_SECRET": settings.fivetran_api_secret,
                 "FIVETRAN_ALLOW_WRITES": settings.fivetran_allow_writes,
@@ -139,6 +136,7 @@ def create_arbitration_agent() -> Agent:
                 command="npx",
                 args=["-y", "@dynatrace-oss/dynatrace-mcp-server"],
                 env={
+                    **os.environ,
                     "DT_ENVIRONMENT": settings.dynatrace_environment,
                     "DT_PLATFORM_TOKEN": settings.dt_platform_token,
                     "DT_MCP_DISABLE_TELEMETRY": "true",
@@ -149,7 +147,6 @@ def create_arbitration_agent() -> Agent:
     # --- Build the Agent ---
     tools = [
         gitlab_mcp,         # MCP: Official GitLab server
-        mongo_mcp,          # MCP: MongoDB ledger operations
         # arize_mcp,        # DISABLED
         elastic_mcp,        # MCP: Elastic log search and query
         fivetran_mcp,       # MCP: Fivetran sync orchestration
@@ -158,6 +155,8 @@ def create_arbitration_agent() -> Agent:
         fetch_gitlab_issue, # Custom: Direct GitLab API issue fetcher (official MCP missing get_issue)
         analyze_diff,       # Custom: Deterministic heuristics analysis
         calculate_payment,  # Custom: Score-to-payment conversion
+        check_budget,       # Custom: Native MongoDB budget checker
+        record_evaluation_and_payment, # Custom: Native MongoDB ledger writer
         index_evaluation_to_elastic, # Custom: Write evaluation to Elastic
     ]
     if dynatrace_mcp:
