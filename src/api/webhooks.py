@@ -7,6 +7,8 @@ validates the payload, and triggers the Arbitration Agent for evaluation.
 
 import logging
 import base64
+import uuid
+import re
 import hmac
 import hashlib
 from fastapi import APIRouter, HTTPException, Request, status, BackgroundTasks, Header
@@ -140,61 +142,60 @@ def run_agent_task(event: GitLabMergeRequestEvent):
         agent = get_arbitration_agent()
         runner = InMemoryRunner(agent=agent, app_name="mergemind")
         
+        # Use a unique session ID per webhook invocation to prevent MCP session
+        # collisions when concurrent webhooks fire before the previous one tears down.
+        session_id = f"{mr.iid}-{uuid.uuid4().hex[:8]}"
         try:
-            runner.session_service.create_session_sync(app_name="mergemind", user_id="webhook", session_id=str(mr.iid))
+            runner.session_service.create_session_sync(app_name="mergemind", user_id="webhook", session_id=session_id)
         except Exception:
             pass
+
         responses = []
-        for e in runner.run(user_id="webhook", session_id=str(mr.iid), new_message=message):
+        for e in runner.run(user_id="webhook", session_id=session_id, new_message=message):
             responses.append(e)
-            
+
         if not responses:
             logger.warning(f"Agent finished evaluating MR {mr.iid} but returned no response.")
             return
 
-        raw_response = responses[-1]
-        
-        # Safely extract full text without relying on str() which might truncate with '...'
+        # Scan ALL responses for a JSON block — the last event is often just a
+        # turn-complete signal with no text content, so we must not only check [-1].
         raw_str = ""
-        if hasattr(raw_response, "content") and hasattr(raw_response.content, "parts"):
-            for part in raw_response.content.parts:
-                if hasattr(part, "text") and part.text:
-                    raw_str += part.text
-        else:
-            raw_str = str(raw_response)
-            
+        for resp in reversed(responses):
+            if hasattr(resp, "content") and hasattr(resp.content, "parts"):
+                for part in resp.content.parts:
+                    if hasattr(part, "text") and part.text:
+                        raw_str += part.text
+            if raw_str:
+                break  # Stop at the first response that has text
+
+        if not raw_str:
+            # Final fallback: stringify the last response
+            raw_str = str(responses[-1])
 
         # Check if the agent crashed with a malformed function call
         if "MALFORMED_FUNCTION_CALL" in raw_str:
-            logger.error(f"Agent crashed during execution due to an LLM hallucination (e.g. MALFORMED_FUNCTION_CALL). MR: {mr.iid}")
+            logger.error(f"Agent crashed due to MALFORMED_FUNCTION_CALL. MR: {mr.iid}")
             logger.error(f"Raw Crash Data: {raw_str}")
             return
 
-        import re
-        
-        # Look for markdown JSON block first
+        # Extract JSON — prefer a fenced ```json block, then fall back to bare {}
         json_match = re.search(r'```json\s*(.*?)\s*```', raw_str, re.DOTALL)
         if json_match:
             clean_json = json_match.group(1).strip()
         else:
-            # Fallback to finding the first { ... } block (non-greedy)
-            json_match = re.search(r'\{.*?\}', raw_str, re.DOTALL)
-            if json_match:
-                clean_json = json_match.group(0).strip()
-            else:
-                clean_json = raw_str
+            json_match = re.search(r'\{.*\}', raw_str, re.DOTALL)
+            clean_json = json_match.group(0).strip() if json_match else raw_str
 
-        # Unescape heavily stringified quotes if ADK repr mangled them
+        # Unescape quotes that ADK repr may have mangled
         clean_json = clean_json.replace('\\"', '"')
-        
-        # Clean up any escaped single quotes that ADK's repr might have added
         if clean_json.startswith("'{") and clean_json.endswith("}'"):
             clean_json = clean_json[1:-1]
-            
+
         try:
             evaluation = CodeEvaluation.model_validate_json(clean_json)
-            
-            # --- Pretty Logging for Video Recording ---
+
+            # --- Pretty Logging ---
             box_width = 70
             logger.info("\n" + "="*box_width)
             logger.info(f" 🤖 MERGEMIND EVALUATION COMPLETE ".center(box_width, "="))
@@ -213,11 +214,11 @@ def run_agent_task(event: GitLabMergeRequestEvent):
             logger.info("-" * box_width)
             logger.info(f" Verdict:\n   {evaluation.summary_verdict}")
             logger.info("="*box_width + "\n")
-            
+
         except Exception as parse_err:
-            raw_excerpt = str(raw_response)[:200] + "..." if len(str(raw_response)) > 200 else str(raw_response)
+            raw_excerpt = raw_str[:300] + "..." if len(raw_str) > 300 else raw_str
             logger.error(f"Agent permanently failed to return valid schema for MR {mr.iid}. Error: {parse_err}")
             logger.error(f"Raw Output Excerpt: {raw_excerpt}")
-            
+
     except Exception as e:
         logger.error(f"Agent evaluation failed for MR {mr.iid}: {e}", exc_info=True)
