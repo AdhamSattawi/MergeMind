@@ -128,11 +128,12 @@ def run_agent_task(event: GitLabMergeRequestEvent):
     try:
         logger.info(f"Starting background agent evaluation for MR {mr.iid}...")
         
+        mr_description = mr.description or "(No description provided — no issue linked.)"
         task_prompt = (
             f"Please evaluate Merge Request IID {mr.iid} in the project '{event.project.name}' "
             f"(Project ID: {event.project.id}).\n\n"
             f"MR Title: {mr.title}\n"
-            f"MR Description: {mr.description}\n\n"
+            f"MR Description: {mr_description}\n\n"
             "Ensure you do self-introspection first, check heuristics, perform the Ticket Validation Loop "
             "(checking if the code aligns with a linked issue in the description), and finally execute "
             "the payment and ledger logic."
@@ -151,8 +152,28 @@ def run_agent_task(event: GitLabMergeRequestEvent):
             pass
 
         responses = []
-        for e in runner.run(user_id="webhook", session_id=session_id, new_message=message):
-            responses.append(e)
+        try:
+            for e in runner.run(user_id="webhook", session_id=session_id, new_message=message):
+                responses.append(e)
+        except ValueError as ve:
+            # Gemini raises this when the model returns an empty response — typically
+            # triggered by a completely blank/junk MR description with no issue linked.
+            # The model's safety layer refuses to process it and returns nothing.
+            if "model output must contain either output text or tool calls" in str(ve):
+                logger.warning(
+                    f"\n{'='*70}\n"
+                    f" ❌ MR REJECTED — AUTOMATIC REJECTION\n"
+                    f"{'='*70}\n"
+                    f" Merge Request : #{mr.iid}\n"
+                    f" Project       : {event.project.name}\n"
+                    f" Reason        : No linked issue and/or no meaningful description.\n"
+                    f"                 MergeMind requires every MR to reference a valid\n"
+                    f"                 GitLab Issue (e.g. 'Closes #15').\n"
+                    f" Payment       : $0.00\n"
+                    f"{'='*70}\n"
+                )
+                return
+            raise  # Re-raise unexpected ValueErrors
 
         if not responses:
             logger.warning(f"Agent finished evaluating MR {mr.iid} but returned no response.")
