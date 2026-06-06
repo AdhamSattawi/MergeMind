@@ -5,6 +5,8 @@ Initializes the FastAPI application, mounts the webhooks router,
 and configures standard middleware.
 """
 
+import logging
+
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,6 +16,12 @@ from src.api.webhooks import router as webhooks_router
 
 from src.observability.tracer import setup_tracing
 setup_tracing()
+
+# Ensure all mergemind.* loggers write to stderr so Cloud Run captures them
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

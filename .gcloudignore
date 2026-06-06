@@ -1,0 +1,18 @@
+# .gcloudignore — excludes these from the Cloud Build context
+.git
+.gitignore
+venv/
+.env
+*.log
+logs.txt
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+tests/
+.vscode/
+.idea/
+mongodb_data/
+docker-compose.yml

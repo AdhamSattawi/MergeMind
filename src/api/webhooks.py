@@ -6,6 +6,7 @@ validates the payload, and triggers the Arbitration Agent for evaluation.
 """
 
 import logging
+import asyncio
 import base64
 import uuid
 import re
@@ -120,9 +121,11 @@ async def handle_gitlab_webhook(
     }
 
 
-def run_agent_task(event: GitLabMergeRequestEvent):
+async def run_agent_task(event: GitLabMergeRequestEvent):
     """
     Background task that actually invokes the ADK Agent.
+    Must be async so that FastAPI runs it on the event loop,
+    giving the ADK MCP toolsets the async context they require.
     """
     mr = event.object_attributes
     try:
@@ -147,13 +150,15 @@ def run_agent_task(event: GitLabMergeRequestEvent):
         # collisions when concurrent webhooks fire before the previous one tears down.
         session_id = f"{mr.iid}-{uuid.uuid4().hex[:8]}"
         try:
-            runner.session_service.create_session_sync(app_name="mergemind", user_id="webhook", session_id=session_id)
+            await runner.session_service.create_session(
+                app_name="mergemind", user_id="webhook", session_id=session_id
+            )
         except Exception:
             pass
 
         responses = []
         try:
-            for e in runner.run(user_id="webhook", session_id=session_id, new_message=message):
+            async for e in runner.run_async(user_id="webhook", session_id=session_id, new_message=message):
                 responses.append(e)
         except ValueError as ve:
             # Gemini raises this when the model returns an empty response — typically
