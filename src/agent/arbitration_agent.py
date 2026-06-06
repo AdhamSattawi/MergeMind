@@ -53,59 +53,72 @@ def create_arbitration_agent() -> Agent:
 
     # --- MCP Tool: GitLab (Partner Track) ---
     # Official GitLab MCP server for MR/issue/diff access.
-    gitlab_mcp = McpToolset(
-        connection_params=StdioConnectionParams(
-            server_params=StdioServerParameters(
-                command="npx",
-                args=["-y", "@modelcontextprotocol/server-gitlab"],
-                env={
-                    **os.environ,
-                    "GITLAB_PERSONAL_ACCESS_TOKEN": settings.gitlab_personal_access_token,
-                    "GITLAB_API_URL": settings.gitlab_api_url,
-                },
-            ),
-            timeout=60,
+    gitlab_mcp = None
+    if settings.gitlab_personal_access_token:
+        gitlab_mcp = McpToolset(
+            connection_params=StdioConnectionParams(
+                server_params=StdioServerParameters(
+                    command="npx",
+                    args=["-y", "@modelcontextprotocol/server-gitlab"],
+                    env={
+                        **os.environ,
+                        "GITLAB_PERSONAL_ACCESS_TOKEN": settings.gitlab_personal_access_token,
+                        "GITLAB_API_URL": settings.gitlab_api_url,
+                        "npm_config_update_notifier": "false",
+                        "npm_config_loglevel": "error",
+                    },
+                ),
+                timeout=60,
+            )
         )
-    )
 
     # --- MCP Tool: Elastic (Partner Track) ---
     # Elasticsearch MCP server for indexing evaluations and querying history.
-    elastic_env = {**os.environ, "OTEL_SDK_DISABLED": "true"}
-    if settings.elastic_api_key:
-        elastic_env["ELASTIC_API_KEY"] = settings.elastic_api_key
-    if settings.elastic_id:
-        elastic_env["ES_URL"] = settings.elastic_id
-    if settings.elastic_cloud_id:
-        elastic_env["ES_CLOUD_ID"] = settings.elastic_cloud_id
+    elastic_mcp = None
+    if settings.elastic_api_key or settings.elastic_cloud_id or settings.elastic_id:
+        elastic_env = {
+            **os.environ, 
+            "OTEL_SDK_DISABLED": "true",
+            "npm_config_update_notifier": "false",
+            "npm_config_loglevel": "error",
+        }
+        if settings.elastic_api_key:
+            elastic_env["ELASTIC_API_KEY"] = settings.elastic_api_key
+        if settings.elastic_id:
+            elastic_env["ES_URL"] = settings.elastic_id
+        if settings.elastic_cloud_id:
+            elastic_env["ES_CLOUD_ID"] = settings.elastic_cloud_id
 
-    elastic_mcp = McpToolset(
-        connection_params=StdioConnectionParams(
-            server_params=StdioServerParameters(
-                command="npx",
-                args=["-y", "@elastic/mcp-server-elasticsearch"],
-                env=elastic_env,
-            ),
-            timeout=60,
+        elastic_mcp = McpToolset(
+            connection_params=StdioConnectionParams(
+                server_params=StdioServerParameters(
+                    command="npx",
+                    args=["-y", "@elastic/mcp-server-elasticsearch"],
+                    env=elastic_env,
+                ),
+                timeout=60,
+            )
         )
-    )
 
     # --- MCP Tool: Fivetran (Partner Track) ---
     # Custom Python MCP server for triggering data syncs to BigQuery.
-    fivetran_mcp = McpToolset(
-        connection_params=StdioConnectionParams(
-            server_params=StdioServerParameters(
-                command="python",
-                args=["src/tools/fivetran_mcp/server.py"],
-                env={
-                    **os.environ,
-                    "FIVETRAN_API_KEY": settings.fivetran_api_key,
-                    "FIVETRAN_API_SECRET": settings.fivetran_api_secret,
-                    "FIVETRAN_ALLOW_WRITES": settings.fivetran_allow_writes,
-                },
-            ),
-            timeout=60,
+    fivetran_mcp = None
+    if settings.fivetran_api_key:
+        fivetran_mcp = McpToolset(
+            connection_params=StdioConnectionParams(
+                server_params=StdioServerParameters(
+                    command="python",
+                    args=["src/tools/fivetran_mcp/server.py"],
+                    env={
+                        **os.environ,
+                        "FIVETRAN_API_KEY": settings.fivetran_api_key,
+                        "FIVETRAN_API_SECRET": settings.fivetran_api_secret,
+                        "FIVETRAN_ALLOW_WRITES": str(settings.fivetran_allow_writes).lower(),
+                    },
+                ),
+                timeout=60,
+            )
         )
-    )
 
     # --- MCP Tool: Dynatrace (Partner Track) ---
     # Checks for active vulnerabilities before finalizing payments.
@@ -129,11 +142,6 @@ def create_arbitration_agent() -> Agent:
 
     # --- Build tool list ---
     tools = [
-        # MCP Partner Track tools
-        gitlab_mcp,
-        elastic_mcp,
-        fivetran_mcp,
-
         # Native GitLab tools (reliable fallback + direct API access)
         fetch_gitlab_mr_diff,
         post_gitlab_mr_comment,
@@ -151,8 +159,9 @@ def create_arbitration_agent() -> Agent:
         index_evaluation_to_elastic,
     ]
 
-    if dynatrace_mcp:
-        tools.append(dynatrace_mcp)
+    for mcp_tool in [gitlab_mcp, elastic_mcp, fivetran_mcp, dynatrace_mcp]:
+        if mcp_tool:
+            tools.append(mcp_tool)
 
     agent = Agent(
         model=VertexGemini(model="gemini-2.5-flash"),
