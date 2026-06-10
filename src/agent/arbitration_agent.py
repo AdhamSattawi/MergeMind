@@ -29,6 +29,8 @@ logger = logging.getLogger("mergemind.agent")
 class VertexGemini(Gemini):
     @functools.cached_property
     def api_client(self) -> Client:
+        if settings.google_api_key:
+            return Client(api_key=settings.google_api_key)
         return Client(
             vertexai=True,
             project=settings.google_cloud_project,

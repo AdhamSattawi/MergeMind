@@ -33,6 +33,7 @@ def setup_tracing():
         # and PHOENIX_COLLECTOR_ENDPOINT from the environment.
         tracer_provider = register(
             project_name="mergemind-arbitration",
+            batch=True,
         )
 
         # Instrument the ADK agent
