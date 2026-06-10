@@ -58,14 +58,12 @@ def create_arbitration_agent() -> Agent:
         gitlab_mcp = McpToolset(
             connection_params=StdioConnectionParams(
                 server_params=StdioServerParameters(
-                    command="npx",
-                    args=["-y", "@modelcontextprotocol/server-gitlab"],
+                    command="mcp-server-gitlab",
+                    args=[],
                     env={
                         **os.environ,
                         "GITLAB_PERSONAL_ACCESS_TOKEN": settings.gitlab_personal_access_token,
                         "GITLAB_API_URL": settings.gitlab_api_url,
-                        "npm_config_update_notifier": "false",
-                        "npm_config_loglevel": "error",
                     },
                 ),
                 timeout=60,
@@ -75,15 +73,12 @@ def create_arbitration_agent() -> Agent:
     # --- MCP Tool: Elastic (Partner Track) ---
     # Elasticsearch MCP server for indexing evaluations and querying history.
     elastic_mcp = None
-    if settings.elastic_api_key or settings.elastic_cloud_id or settings.elastic_id:
+    if settings.elastic_api_key and (settings.elastic_id or settings.elastic_cloud_id):
         elastic_env = {
             **os.environ, 
             "OTEL_SDK_DISABLED": "true",
-            "npm_config_update_notifier": "false",
-            "npm_config_loglevel": "error",
         }
-        if settings.elastic_api_key:
-            elastic_env["ELASTIC_API_KEY"] = settings.elastic_api_key
+        elastic_env["ELASTIC_API_KEY"] = settings.elastic_api_key
         if settings.elastic_id:
             elastic_env["ES_URL"] = settings.elastic_id
         if settings.elastic_cloud_id:
@@ -92,8 +87,8 @@ def create_arbitration_agent() -> Agent:
         elastic_mcp = McpToolset(
             connection_params=StdioConnectionParams(
                 server_params=StdioServerParameters(
-                    command="npx",
-                    args=["-y", "@elastic/mcp-server-elasticsearch"],
+                    command="mcp-server-elasticsearch",
+                    args=[],
                     env=elastic_env,
                 ),
                 timeout=60,
@@ -103,7 +98,7 @@ def create_arbitration_agent() -> Agent:
     # --- MCP Tool: Fivetran (Partner Track) ---
     # Custom Python MCP server for triggering data syncs to BigQuery.
     fivetran_mcp = None
-    if settings.fivetran_api_key:
+    if settings.fivetran_api_key and settings.fivetran_api_secret:
         fivetran_mcp = McpToolset(
             connection_params=StdioConnectionParams(
                 server_params=StdioServerParameters(
@@ -123,12 +118,12 @@ def create_arbitration_agent() -> Agent:
     # --- MCP Tool: Dynatrace (Partner Track) ---
     # Checks for active vulnerabilities before finalizing payments.
     dynatrace_mcp = None
-    if settings.dt_platform_token:
+    if settings.dt_platform_token and settings.dynatrace_environment:
         dynatrace_mcp = McpToolset(
             connection_params=StdioConnectionParams(
                 server_params=StdioServerParameters(
-                    command="npx",
-                    args=["-y", "@dynatrace-oss/dynatrace-mcp-server"],
+                    command="mcp-server-dynatrace",
+                    args=[],
                     env={
                         **os.environ,
                         "DT_ENVIRONMENT": settings.dynatrace_environment,
